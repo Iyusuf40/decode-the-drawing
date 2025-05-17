@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Decode The Drawing</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: #f0f0f0;
+        flex-direction: column;
+      }
+      canvas {
+        border: 2px solid black;
+        margin-bottom: 20px;
+      }
+      .buttons {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="buttons">
+      <button id="loadVideoButton">Load Video</button>
+      <button id="loadCoordinatesButton">Load Coordinates</button>
+      <button id="replayVideoButton">Replay Video</button>
+      <button id="playVideoButton">Play Video</button>
+      <button id="pauseVideoButton">Pause Video</button>
+    </div>
+    <canvas id="myCanvas" width="1280" height="720"></canvas>
+    <canvas id="drawingCanvas" width="1280" height="720"></canvas>
+
+    <input type="file" id="videoInput" accept="video/*" style="display: none" />
+    <input
+      type="file"
+      id="coordinatesInput"
+      accept=".txt"
+      style="display: none"
+    />
+
+    <script src="writer.js"></script>
+    <script src="positionReference.js"></script>
+    <script src="index.js"></script>
+  </body>
+</html>
