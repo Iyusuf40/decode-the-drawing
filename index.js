@@ -28,7 +28,7 @@ function resetStartPoint() {
 
 const DRAW_BALL_AREAS = true;
 const DRAW_LIVE = true;
-const DOWNLOAD_COORDINATES_AS_FILE = false;
+const DOWNLOAD_COORDINATES_AS_FILE = true;
 
 let decision = {
   xScale: 0,
@@ -143,8 +143,8 @@ function getDrawingCoordinates(decision) {
   decision.xScale *= xScaler;
   decision.yScale *= yScaler;
 
-  startPoint.x += decision.xScale;
-  startPoint.y += decision.yScale;
+  startPoint.x = decision.xScale;
+  startPoint.y = decision.yScale;
   // console.table(startPoint);
   // console.table(decision);
 

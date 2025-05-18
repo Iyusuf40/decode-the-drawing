@@ -11,15 +11,24 @@ class PositionReference {
     this.rightReferencePoint = rightReferencePoint;
     this.leftReferencePoint = leftReferencePoint;
     this.topReferencePoint = topReferencePoint;
+    this.containerBox = {
+      minX: Infinity,
+      minY: Infinity,
+      maxX: 0,
+      maxY: 0,
+    };
   }
 
   updatePosition(ctx, drawingCanvas = null) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
-    // rgb(220,54,4)
-    // rgb(24,100,252)
-    // rgb(105, 192, 105)
     const threshod = 50;
+    this.containerBox = {
+      minX: Infinity,
+      minY: Infinity,
+      maxX: 0,
+      maxY: 0,
+    };
     const redBox = {
       minX: Infinity,
       minY: Infinity,
@@ -67,6 +76,30 @@ class PositionReference {
         greenBox.maxY = Math.max(greenBox.maxY, point.y);
       }
     }
+    this.containerBox.minX = Math.min(
+      this.containerBox.minX,
+      redBox.minX,
+      blueBox.minX,
+      greenBox.minX
+    );
+    this.containerBox.minY = Math.min(
+      this.containerBox.minY,
+      redBox.minY,
+      blueBox.minY,
+      greenBox.minY
+    );
+    this.containerBox.maxX = Math.max(
+      this.containerBox.maxX,
+      redBox.maxX,
+      blueBox.maxX,
+      greenBox.maxX
+    );
+    this.containerBox.maxY = Math.max(
+      this.containerBox.maxY,
+      redBox.maxY,
+      blueBox.maxY,
+      greenBox.maxY
+    );
     if (drawingCanvas) {
       const drawingCanvasCtx = drawingCanvas.getContext("2d");
       if (drawingCanvas.id === "drawingCanvas") {
@@ -88,6 +121,16 @@ class PositionReference {
         drawingCanvasCtx.strokeStyle = "red";
         drawingCanvasCtx.stroke();
       });
+
+      drawingCanvasCtx.beginPath();
+      drawingCanvasCtx.rect(
+        this.containerBox.minX,
+        this.containerBox.minY,
+        this.containerBox.maxX - this.containerBox.minX,
+        this.containerBox.maxY - this.containerBox.minY
+      );
+      drawingCanvasCtx.strokeStyle = "blue";
+      drawingCanvasCtx.stroke();
     }
     this.topReferencePoint.updatePositionAndArea(redBox);
     this.leftReferencePoint.updatePositionAndArea(blueBox);
@@ -132,28 +175,29 @@ class Triangle {
     this.topToLeftDistance = 0;
     this.previousTopToRightDistance = 0;
     this.previousTopToLeftDistance = 0;
+    this.initArea = 0;
   }
 
   getAreaChange() {
-    if (this.previousArea === 0) {
-      return 0;
+    if (this.initArea === 0) {
+      return 360;
     }
-    return calculateNewDistanceBasedOnArea(
-      this.previousArea,
-      this.area * Math.sign(this.area - this.previousArea)
-    );
+    const areaRatio = this.area / this.initArea;
+    let y = 360 * areaRatio;
+    y = 360 + (360 - y);
+    return y;
   }
 
   getDistanceChange() {
     if (this.right.previousArea === 0 || this.left.previousArea === 0) {
-      return 0;
+      return 640;
     }
 
-    return (
-      (Math.sign(this.right.getArea() - this.left.getArea()) *
-        this.right.getArea()) /
-      this.left.getArea()
-    );
+    const areaRatio = this.right.getArea() / this.left.getArea();
+
+    const x = 640 * areaRatio;
+
+    return x;
   }
 
   distanceChanged() {
@@ -189,14 +233,14 @@ class Triangle {
     const topPoint = this.top.position;
     const leftPoint = this.left.position;
     const rightPoint = this.right.position;
+    const box = {
+      minX: Math.min(leftPoint.x, rightPoint.x, topPoint.x),
+      minY: Math.min(leftPoint.y, rightPoint.y, topPoint.y),
+      maxX: Math.max(leftPoint.x, rightPoint.x, topPoint.x),
+      maxY: Math.max(leftPoint.y, rightPoint.y, topPoint.y),
+    };
 
-    const area =
-      0.5 *
-      Math.abs(
-        leftPoint.x * (rightPoint.y - topPoint.y) +
-          rightPoint.x * (topPoint.y - leftPoint.y) +
-          topPoint.x * (leftPoint.y - rightPoint.y)
-      );
+    const area = (box.maxX - box.minX) * (box.maxY - box.minY);
     return area;
   }
 }
