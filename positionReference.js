@@ -16,8 +16,10 @@ class PositionReference {
   updatePosition(ctx, drawingCanvas = null) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
-    const ignoreColorThreshold = 80;
-    const includeColorThreshold = 100;
+    // rgb(220,54,4)
+    // rgb(24,100,252)
+    // rgb(105, 192, 105)
+    const threshod = 50;
     const redBox = {
       minX: Infinity,
       minY: Infinity,
@@ -46,31 +48,19 @@ class PositionReference {
         y: Math.floor(i / 4 / imageData.width),
       };
 
-      if (
-        r > includeColorThreshold &&
-        g < ignoreColorThreshold &&
-        b < ignoreColorThreshold
-      ) {
+      if (r > g + threshod && r > b + threshod) {
         redBox.minX = Math.min(redBox.minX, point.x);
         redBox.minY = Math.min(redBox.minY, point.y);
         redBox.maxX = Math.max(redBox.maxX, point.x);
         redBox.maxY = Math.max(redBox.maxY, point.y);
       }
-      if (
-        r < ignoreColorThreshold &&
-        g < ignoreColorThreshold &&
-        b > includeColorThreshold
-      ) {
+      if (b > r + threshod && b > g + threshod) {
         blueBox.minX = Math.min(blueBox.minX, point.x);
         blueBox.minY = Math.min(blueBox.minY, point.y);
         blueBox.maxX = Math.max(blueBox.maxX, point.x);
         blueBox.maxY = Math.max(blueBox.maxY, point.y);
       }
-      if (
-        r < ignoreColorThreshold &&
-        g > includeColorThreshold &&
-        b < ignoreColorThreshold
-      ) {
+      if (g > r + threshod && g > b + threshod) {
         greenBox.minX = Math.min(greenBox.minX, point.x);
         greenBox.minY = Math.min(greenBox.minY, point.y);
         greenBox.maxX = Math.max(greenBox.maxX, point.x);
@@ -102,20 +92,17 @@ class PositionReference {
     this.topReferencePoint.updatePositionAndArea(redBox);
     this.leftReferencePoint.updatePositionAndArea(blueBox);
     this.rightReferencePoint.updatePositionAndArea(greenBox);
-    this.rightReferencePoint.update();
-    this.leftReferencePoint.update();
-    this.topReferencePoint.update();
   }
 }
 
 class ReferencePoint {
-  constructor(onSizeIncrease, onSizeDecrease) {
+  constructor(type = "") {
+    this.type = type;
     this.position = { x: 0, y: 0 };
     this.previousPosition = { x: 0, y: 0 };
     this.area = 0;
     this.previousArea = 0;
-    this.onSizeIncrease = onSizeIncrease;
-    this.onSizeDecrease = onSizeDecrease;
+    this.box = null;
   }
 
   updatePositionAndArea(box) {
@@ -126,44 +113,103 @@ class ReferencePoint {
       y: (box.minY + box.maxY) / 2,
     };
     this.area = (box.maxX - box.minX) * (box.maxY - box.minY);
+    this.box = box;
   }
 
-  getAreaIncreaseRatio() {
-    if (!this.previousArea) {
-      // first update, therefore assume no change
-      return 1;
+  getArea() {
+    return this.area;
+  }
+}
+
+class Triangle {
+  constructor(topReferencePoint, leftReferencePoint, rightReferencePoint) {
+    this.top = topReferencePoint;
+    this.left = leftReferencePoint;
+    this.right = rightReferencePoint;
+    this.area = 0;
+    this.previousArea = 0;
+    this.topToRightDistance = 0;
+    this.topToLeftDistance = 0;
+    this.previousTopToRightDistance = 0;
+    this.previousTopToLeftDistance = 0;
+  }
+
+  getAreaChange() {
+    if (this.previousArea === 0) {
+      return 0;
     }
-    return this.area / this.previousArea;
+    return calculateNewDistanceBasedOnArea(
+      this.previousArea,
+      this.area * Math.sign(this.area - this.previousArea)
+    );
   }
 
-  getAreaDecreaseRatio() {
-    if (!this.previousArea) {
-      // first update, therefore assume no change
-      return 1;
+  getDistanceChange() {
+    if (this.right.previousArea === 0 || this.left.previousArea === 0) {
+      return 0;
     }
-    return this.previousArea / this.area;
+
+    return (
+      (Math.sign(this.right.getArea() - this.left.getArea()) *
+        this.right.getArea()) /
+      this.left.getArea()
+    );
   }
 
-  gotBigger() {
-    return this.area > this.previousArea;
-  }
-
-  gotSmaller() {
-    return this.area < this.previousArea;
+  distanceChanged() {
+    if (
+      this.previousTopToRightDistance === 0 &&
+      this.previousTopToLeftDistance === 0
+    ) {
+      return false;
+    }
+    return (
+      this.topToLeftDistance !== this.previousTopToLeftDistance ||
+      this.topToRightDistance !== this.previousTopToRightDistance
+    );
   }
 
   update() {
-    if (!this.previousArea || !this.previousPosition) {
-      // first update, therefore skip
-      return;
+    if (this.previousArea === 0) {
+      this.initArea = this.area;
     }
-
-    if (this.area > this.previousArea) {
-      this.onSizeIncrease(this);
-    }
-
-    if (this.area < this.previousArea) {
-      this.onSizeDecrease(this);
-    }
+    this.previousArea = this.area;
+    this.previousTopToRightDistance = this.topToRightDistance;
+    this.previousTopToLeftDistance = this.topToLeftDistance;
+    this.area = this.calculateArea();
+    this.updateDistances();
   }
+
+  updateDistances() {
+    this.topToRightDistance = distance(this.top.position, this.right.position);
+    this.topToLeftDistance = distance(this.top.position, this.left.position);
+  }
+
+  calculateArea() {
+    const topPoint = this.top.position;
+    const leftPoint = this.left.position;
+    const rightPoint = this.right.position;
+
+    const area =
+      0.5 *
+      Math.abs(
+        leftPoint.x * (rightPoint.y - topPoint.y) +
+          rightPoint.x * (topPoint.y - leftPoint.y) +
+          topPoint.x * (leftPoint.y - rightPoint.y)
+      );
+    return area;
+  }
+}
+
+function distance(point1, point2) {
+  return Math.sqrt(
+    Math.pow(point1.x - point2.x, 2) + Math.pow(point1.y - point2.y, 2)
+  );
+}
+
+function calculateNewDistanceBasedOnArea(initialArea, newArea) {
+  if (newArea === 0 || initialArea === 0) return 1;
+  const areaRatio = initialArea / newArea;
+  const distanceRatio = Math.sqrt(Math.abs(areaRatio));
+  return distanceRatio * Math.sign(areaRatio);
 }

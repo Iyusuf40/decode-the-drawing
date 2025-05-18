@@ -11,6 +11,7 @@ const drawingCanvas = document.getElementById("drawingCanvas");
 
 let videoElement = null;
 let positionReference = null;
+let triangle = null;
 let animationFramHandle = null;
 const canvasWriter = new CanvasWriter();
 const fileWriter = new FileWriter();
@@ -27,64 +28,29 @@ function resetStartPoint() {
 
 const DRAW_BALL_AREAS = true;
 const DRAW_LIVE = true;
-const DOWNLOAD_COORDINATES_AS_FILE = true;
+const DOWNLOAD_COORDINATES_AS_FILE = false;
 
 let decision = {
-  moveRightScale: 0,
-  moveLeftScale: 0,
-  moveForwardScale: 0,
-  moveBackwardScale: 0,
+  xScale: 0,
+  yScale: 0,
 };
 
 function resetDecision() {
-  decision.moveRightScale = 0;
-  decision.moveLeftScale = 0;
-  decision.moveForwardScale = 0;
-  decision.moveBackwardScale = 0;
+  decision.xScale = 0;
+  decision.yScale = 0;
 }
 
-function getRightAffinity(refPoint) {
-  decision.moveRightScale = refPoint.getAreaIncreaseRatio();
+function updateForwardBackwardScale(triangle) {
+  decision.yScale = triangle.getAreaChange();
 }
 
-function getRightAversion(refPoint) {
-  decision.moveLeftScale = refPoint.getAreaDecreaseRatio();
+function updateRightLeftScale(triangle) {
+  decision.xScale = triangle.getDistanceChange();
 }
 
-function getLeftAffinity(refPoint) {
-  decision.moveLeftScale = refPoint.getAreaIncreaseRatio();
-}
-
-function getLeftAversion(refPoint) {
-  decision.moveRightScale = refPoint.getAreaDecreaseRatio();
-}
-
-function updateForwardBackwardScale(leftRefpoint, rightRefpoint) {
-  if (leftRefpoint.gotBigger() && rightRefpoint.gotBigger()) {
-    decision.moveForwardScale = Math.max(
-      leftRefpoint.getAreaIncreaseRatio(),
-      rightRefpoint.getAreaIncreaseRatio()
-    );
-  }
-
-  if (leftRefpoint.gotSmaller() && rightRefpoint.gotSmaller()) {
-    decision.moveBackwardScale = Math.max(
-      leftRefpoint.getAreaDecreaseRatio(),
-      rightRefpoint.getAreaDecreaseRatio()
-    );
-  }
-}
-
-const rightReferencePoint = new ReferencePoint(
-  getRightAffinity,
-  getRightAversion
-);
-
-const leftReferencePoint = new ReferencePoint(getLeftAffinity, getLeftAversion);
-const topReferencePoint = new ReferencePoint(
-  () => {},
-  () => {}
-);
+const rightReferencePoint = new ReferencePoint("rightRef");
+const leftReferencePoint = new ReferencePoint("leftRef");
+const topReferencePoint = new ReferencePoint("topRef");
 
 loadCoordinatesButton.addEventListener("click", () => {
   coordinatesInput.click();
@@ -154,8 +120,9 @@ function updateCanvas() {
     ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
     const debugCanvas = DRAW_BALL_AREAS ? canvas : null;
     positionReference.updatePosition(ctx, debugCanvas);
-    updateForwardBackwardScale(leftReferencePoint, rightReferencePoint);
-    // console.log("\n\n", JSON.stringify(decision, null, 2));
+    triangle.update();
+    updateForwardBackwardScale(triangle);
+    updateRightLeftScale(triangle);
 
     const { x, y } = getDrawingCoordinates(decision);
     if (DRAW_LIVE) {
@@ -171,20 +138,15 @@ function updateCanvas() {
 }
 
 function getDrawingCoordinates(decision) {
-  const xScaler = 6;
-  const yScaler = 1.5;
-  if (decision.moveRightScale) {
-    startPoint.x += decision.moveRightScale * xScaler;
-  }
-  if (decision.moveLeftScale) {
-    startPoint.x -= decision.moveLeftScale * xScaler;
-  }
-  if (decision.moveForwardScale) {
-    startPoint.y -= decision.moveForwardScale * yScaler;
-  }
-  if (decision.moveBackwardScale) {
-    startPoint.y += decision.moveBackwardScale * yScaler;
-  }
+  const xScaler = 1;
+  const yScaler = 1;
+  decision.xScale *= xScaler;
+  decision.yScale *= yScaler;
+
+  startPoint.x += decision.xScale;
+  startPoint.y += decision.yScale;
+  // console.table(startPoint);
+  // console.table(decision);
 
   return { x: startPoint.x, y: startPoint.y };
 }
@@ -210,9 +172,14 @@ fileInput.addEventListener("change", (event) => {
       positionReference = new PositionReference(
         canvas.width,
         canvas.height,
-        rightReferencePoint,
         leftReferencePoint,
+        rightReferencePoint,
         topReferencePoint
+      );
+      triangle = new Triangle(
+        topReferencePoint,
+        leftReferencePoint,
+        rightReferencePoint
       );
       clearDrawingCanvas();
       videoElement.play();
