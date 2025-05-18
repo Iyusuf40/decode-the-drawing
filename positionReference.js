@@ -167,7 +167,7 @@ class Triangle {
     return y;
   }
 
-  getDistanceChange() {
+  getRightBallLeftBallDiff() {
     const midwidth = this.canvasMidWidth;
     if (this.right.previousArea === 0 || this.left.previousArea === 0) {
       return midwidth;
@@ -176,14 +176,14 @@ class Triangle {
     const areaRatio = this.right.getArea() / this.left.getArea();
 
     let x = midwidth * areaRatio;
-    x = midwidth + (midwidth - x); // ensures x axis increases rightwards of canvas
+    // x = midwidth + (midwidth - x); // ensures x axis increases rightwards of canvas
 
     return x;
   }
 
   getDrawingCoordinates() {
     return {
-      x: this.getDistanceChange(),
+      x: this.getRightBallLeftBallDiff(),
       y: this.getAreaChange(),
     };
   }
@@ -211,16 +211,3 @@ class Triangle {
     return area;
   }
 }
-
-// function distance(point1, point2) {
-//   return Math.sqrt(
-//     Math.pow(point1.x - point2.x, 2) + Math.pow(point1.y - point2.y, 2)
-//   );
-// }
-
-// function calculateNewDistanceBasedOnArea(initialArea, newArea) {
-//   if (newArea === 0 || initialArea === 0) return 1;
-//   const areaRatio = initialArea / newArea;
-//   const distanceRatio = Math.sqrt(Math.abs(areaRatio));
-//   return distanceRatio * Math.sign(areaRatio);
-// }

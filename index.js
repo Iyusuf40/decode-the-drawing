@@ -17,6 +17,8 @@ let videoFileName = "";
 const canvasWriter = new CanvasWriter();
 const fileWriter = new FileWriter();
 
+// configuration
+
 const DRAW_BALL_AREAS = true;
 const DRAW_DECODED_DRAWING_LIVE = true;
 const DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = true;
@@ -39,19 +41,6 @@ function init() {
     canvas.width / 2,
     canvas.height / 2
   );
-}
-
-function handleCoordinatesFile(e) {
-  const file = e.target.files[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = function (event) {
-      const fileContent = event.target.result;
-      const coordinates = parseCoordinates(fileContent);
-      drawImageFromCoordinates(coordinates);
-    };
-    reader.readAsText(file);
-  }
 }
 
 function resetDrawings() {
@@ -192,5 +181,18 @@ function drawImageFromCoordinates(coordinates) {
     ctx.strokeStyle = "black";
     ctx.lineWidth = 2;
     ctx.stroke();
+  }
+}
+
+function handleCoordinatesFile(e) {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      const fileContent = event.target.result;
+      const coordinates = parseCoordinates(fileContent);
+      drawImageFromCoordinates(coordinates);
+    };
+    reader.readAsText(file);
   }
 }
