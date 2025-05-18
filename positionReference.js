@@ -175,7 +175,8 @@ class Triangle {
 
     const areaRatio = this.right.getArea() / this.left.getArea();
 
-    const x = midwidth * areaRatio;
+    let x = midwidth * areaRatio;
+    x = midwidth + (midwidth - x); // ensures x axis increases rightwards of canvas
 
     return x;
   }

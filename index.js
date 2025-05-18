@@ -13,12 +13,13 @@ let videoElement = null;
 let positionReference = null;
 let triangle = null;
 let animationFramHandle = null;
+let videoFileName = "";
 const canvasWriter = new CanvasWriter();
 const fileWriter = new FileWriter();
 
-const DRAW_BALL_AREAS = false;
-const DRAW_DECODED_DRAWING_LIVE = false;
-const DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
+const DRAW_BALL_AREAS = true;
+const DRAW_DECODED_DRAWING_LIVE = true;
+const DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = true;
 
 function init() {
   const rightReferencePoint = new ReferencePoint("rightRef");
@@ -101,6 +102,7 @@ fileInput.addEventListener("change", (event) => {
     videoElement.autoplay = true;
     videoElement.loop = true;
     videoElement.muted = true;
+    videoFileName = file.name;
 
     videoElement.addEventListener("loadeddata", () => {
       canvas.width = videoElement.videoWidth;
@@ -115,7 +117,7 @@ fileInput.addEventListener("change", (event) => {
       videoElement.loop = false;
       cancelAnimationFrame(animationFramHandle);
       if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
-        fileWriter.download();
+        fileWriter.download(`${videoFileName}.txt`);
       }
     });
   }
