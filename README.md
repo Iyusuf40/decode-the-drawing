@@ -4,7 +4,7 @@ This project is my attempt to decode a drawing from a video. Please read more at
 
 ## Strategy
 
-The solution in this repository is quite simple.
+The solution in this repository is quite simple, and is still under development.
 
 - Get the video data for each frame.
 
