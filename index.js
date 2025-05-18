@@ -16,47 +16,29 @@ let animationFramHandle = null;
 const canvasWriter = new CanvasWriter();
 const fileWriter = new FileWriter();
 
-const startPoint = {
-  x: canvas.width / 2,
-  y: canvas.height / 2,
-};
+const DRAW_BALL_AREAS = false;
+const DRAW_DECODED_DRAWING_LIVE = false;
+const DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
 
-function resetStartPoint() {
-  startPoint.x = canvas.width / 2;
-  startPoint.y = canvas.height / 2;
+function init() {
+  const rightReferencePoint = new ReferencePoint("rightRef");
+  const leftReferencePoint = new ReferencePoint("leftRef");
+  const topReferencePoint = new ReferencePoint("topRef");
+  positionReference = new PositionReference(
+    canvas.width,
+    canvas.height,
+    leftReferencePoint,
+    rightReferencePoint,
+    topReferencePoint
+  );
+  triangle = new Triangle(
+    topReferencePoint,
+    leftReferencePoint,
+    rightReferencePoint,
+    canvas.width / 2,
+    canvas.height / 2
+  );
 }
-
-const DRAW_BALL_AREAS = true;
-const DRAW_LIVE = true;
-const DOWNLOAD_COORDINATES_AS_FILE = true;
-
-let decision = {
-  xScale: 0,
-  yScale: 0,
-};
-
-function resetDecision() {
-  decision.xScale = 0;
-  decision.yScale = 0;
-}
-
-function updateForwardBackwardScale(triangle) {
-  decision.yScale = triangle.getAreaChange();
-}
-
-function updateRightLeftScale(triangle) {
-  decision.xScale = triangle.getDistanceChange();
-}
-
-const rightReferencePoint = new ReferencePoint("rightRef");
-const leftReferencePoint = new ReferencePoint("leftRef");
-const topReferencePoint = new ReferencePoint("topRef");
-
-loadCoordinatesButton.addEventListener("click", () => {
-  coordinatesInput.click();
-});
-
-coordinatesInput.addEventListener("change", handleCoordinatesFile);
 
 function handleCoordinatesFile(e) {
   const file = e.target.files[0];
@@ -70,6 +52,111 @@ function handleCoordinatesFile(e) {
     reader.readAsText(file);
   }
 }
+
+function resetDrawings() {
+  const drawingCanvasCtx = drawingCanvas.getContext("2d");
+  drawingCanvasCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+  canvasWriter?.reset();
+  fileWriter?.reset();
+}
+
+function updateCanvas() {
+  if (videoElement) {
+    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+    const debugCanvas = DRAW_BALL_AREAS ? canvas : null;
+    positionReference.updatePosition(ctx, debugCanvas);
+    triangle.update();
+
+    const { x, y } = triangle.getDrawingCoordinates();
+    if (DRAW_DECODED_DRAWING_LIVE) {
+      canvasWriter.write(x, y, drawingCanvas);
+    }
+
+    if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
+      fileWriter.write(x, y);
+    }
+
+    animationFramHandle = requestAnimationFrame(updateCanvas);
+  }
+}
+
+// event handlers
+
+loadCoordinatesButton.addEventListener("click", () => {
+  coordinatesInput.click();
+});
+
+coordinatesInput.addEventListener("change", handleCoordinatesFile);
+
+loadVideoButton.addEventListener("click", () => {
+  fileInput.click();
+});
+
+fileInput.addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    const videoURL = URL.createObjectURL(file);
+    videoElement = document.createElement("video");
+    videoElement.src = videoURL;
+    videoElement.autoplay = true;
+    videoElement.loop = true;
+    videoElement.muted = true;
+
+    videoElement.addEventListener("loadeddata", () => {
+      canvas.width = videoElement.videoWidth;
+      canvas.height = videoElement.videoHeight;
+      videoElement.loop = false;
+      resetDrawings();
+      videoElement.play();
+      updateCanvas();
+    });
+
+    videoElement.addEventListener("ended", () => {
+      videoElement.loop = false;
+      cancelAnimationFrame(animationFramHandle);
+      if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
+        fileWriter.download();
+      }
+    });
+  }
+});
+
+replayVideoButton.addEventListener("click", () => {
+  if (videoElement) {
+    cancelAnimationFrame(animationFramHandle);
+    videoElement.currentTime = 0;
+    videoElement.play();
+    resetDrawings();
+    init();
+    updateCanvas();
+  }
+});
+
+playVideoButton.addEventListener("click", () => {
+  if (videoElement) {
+    videoElement.pause();
+    videoElement.play();
+    updateCanvas();
+  }
+});
+
+pauseVideoButton.addEventListener("click", () => {
+  if (videoElement) {
+    videoElement.pause();
+    cancelAnimationFrame(animationFramHandle);
+  }
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  if (DRAW_DECODED_DRAWING_LIVE) {
+    drawingCanvas.style.display = "block";
+  } else {
+    drawingCanvas.style.display = "none";
+  }
+  init();
+});
+
+// utilities
 
 function parseCoordinates(fileContent) {
   const coordinates = [];
@@ -90,14 +177,6 @@ function parseCoordinates(fileContent) {
   return coordinates;
 }
 
-function clearDrawingCanvas() {
-  const drawingCanvasCtx = drawingCanvas.getContext("2d");
-  drawingCanvasCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
-  canvasWriter.reset();
-  resetStartPoint();
-  resetDecision();
-}
-
 function drawImageFromCoordinates(coordinates) {
   const canvas = document.getElementById("drawingCanvas");
   const ctx = canvas.getContext("2d");
@@ -113,108 +192,3 @@ function drawImageFromCoordinates(coordinates) {
     ctx.stroke();
   }
 }
-
-function updateCanvas() {
-  if (videoElement) {
-    resetDecision();
-    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-    const debugCanvas = DRAW_BALL_AREAS ? canvas : null;
-    positionReference.updatePosition(ctx, debugCanvas);
-    triangle.update();
-    updateForwardBackwardScale(triangle);
-    updateRightLeftScale(triangle);
-
-    const { x, y } = getDrawingCoordinates(decision);
-    if (DRAW_LIVE) {
-      canvasWriter.write(x, y, drawingCanvas);
-    }
-
-    if (DOWNLOAD_COORDINATES_AS_FILE) {
-      fileWriter.write(x, y);
-    }
-
-    animationFramHandle = requestAnimationFrame(updateCanvas);
-  }
-}
-
-function getDrawingCoordinates(decision) {
-  const xScaler = 1;
-  const yScaler = 1;
-  decision.xScale *= xScaler;
-  decision.yScale *= yScaler;
-
-  startPoint.x = decision.xScale;
-  startPoint.y = decision.yScale;
-  // console.table(startPoint);
-  // console.table(decision);
-
-  return { x: startPoint.x, y: startPoint.y };
-}
-
-loadVideoButton.addEventListener("click", () => {
-  fileInput.click();
-});
-
-fileInput.addEventListener("change", (event) => {
-  const file = event.target.files[0];
-  if (file) {
-    const videoURL = URL.createObjectURL(file);
-    videoElement = document.createElement("video");
-    videoElement.src = videoURL;
-    videoElement.autoplay = true;
-    videoElement.loop = true;
-    videoElement.muted = true;
-
-    videoElement.addEventListener("loadeddata", () => {
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
-      videoElement.loop = false;
-      positionReference = new PositionReference(
-        canvas.width,
-        canvas.height,
-        leftReferencePoint,
-        rightReferencePoint,
-        topReferencePoint
-      );
-      triangle = new Triangle(
-        topReferencePoint,
-        leftReferencePoint,
-        rightReferencePoint
-      );
-      clearDrawingCanvas();
-      videoElement.play();
-      updateCanvas();
-    });
-
-    videoElement.addEventListener("ended", () => {
-      videoElement.loop = false;
-      cancelAnimationFrame(animationFramHandle);
-      if (DOWNLOAD_COORDINATES_AS_FILE) {
-        fileWriter.download();
-      }
-    });
-  }
-});
-
-replayVideoButton.addEventListener("click", () => {
-  if (videoElement) {
-    videoElement.currentTime = 0;
-    videoElement.play();
-    clearDrawingCanvas();
-    updateCanvas();
-  }
-});
-
-playVideoButton.addEventListener("click", () => {
-  if (videoElement) {
-    videoElement.play();
-    updateCanvas();
-  }
-});
-
-pauseVideoButton.addEventListener("click", () => {
-  if (videoElement) {
-    videoElement.pause();
-    cancelAnimationFrame(animationFramHandle);
-  }
-});

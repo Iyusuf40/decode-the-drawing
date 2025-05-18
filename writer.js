@@ -33,6 +33,10 @@ class FileWriter {
     this.points.push({ x, y });
   }
 
+  reset() {
+    this.points = [];
+  }
+
   download(filename = "drawing.txt") {
     const data = this.points.map((point) => `${point.x} ${point.y}`).join("\n");
     const blob = new Blob([data], { type: "text/plain" });
