@@ -27,19 +27,20 @@ function init() {
   const rightReferencePoint = new ReferencePoint("rightRef");
   const leftReferencePoint = new ReferencePoint("leftRef");
   const topReferencePoint = new ReferencePoint("topRef");
-  positionReference = new PositionReference(
-    canvas.width,
-    canvas.height,
-    leftReferencePoint,
-    rightReferencePoint,
-    topReferencePoint
-  );
   triangle = new Triangle(
     topReferencePoint,
     leftReferencePoint,
     rightReferencePoint,
     canvas.width / 2,
     canvas.height / 2
+  );
+  positionReference = new PositionReference(
+    canvas.width,
+    canvas.height,
+    leftReferencePoint,
+    rightReferencePoint,
+    topReferencePoint,
+    triangle
   );
 }
 

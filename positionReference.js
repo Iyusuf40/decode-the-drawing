@@ -4,22 +4,21 @@ class PositionReference {
     videoHeight = 720,
     leftReferencePoint,
     rightReferencePoint,
-    topReferencePoint
+    topReferencePoint,
+    triangle
   ) {
     this.videoWidth = videoWidth;
     this.videoHeight = videoHeight;
     this.rightReferencePoint = rightReferencePoint;
     this.leftReferencePoint = leftReferencePoint;
     this.topReferencePoint = topReferencePoint;
-    this.redToBlueDist = 0;
-    this.redToGreenDist = 0;
-    this.blueToGreenDist = 0;
+    this.triangle = triangle;
   }
 
   updatePosition(ctx, drawingCanvas = null) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
-    const threshod = 50;
+    const threshod = 25;
     const redBox = {
       minX: Infinity,
       minY: Infinity,
@@ -128,105 +127,6 @@ class PositionReference {
     this.redToBlueDist = rTob;
     this.redToGreenDist = rTog;
     this.blueToGreenDist = bTor;
-
-    if (drawingCanvas) {
-      const drawingCanvasCtx = drawingCanvas.getContext("2d");
-      drawingCanvasCtx.beginPath();
-      drawingCanvasCtx.moveTo(
-        this.topReferencePoint.position.x,
-        this.topReferencePoint.position.y
-      );
-      drawingCanvasCtx.lineTo(
-        this.leftReferencePoint.position.x,
-        this.leftReferencePoint.position.y
-      );
-      drawingCanvasCtx.lineTo(
-        this.rightReferencePoint.position.x,
-        this.rightReferencePoint.position.y
-      );
-      drawingCanvasCtx.closePath();
-      drawingCanvasCtx.strokeStyle = "black";
-      drawingCanvasCtx.stroke();
-
-      const midTopLeft = {
-        x:
-          (this.topReferencePoint.position.x +
-            this.leftReferencePoint.position.x) /
-          2,
-        y:
-          (this.topReferencePoint.position.y +
-            this.leftReferencePoint.position.y) /
-          2,
-      };
-      const midTopRight = {
-        x:
-          (this.topReferencePoint.position.x +
-            this.rightReferencePoint.position.x) /
-          2,
-        y:
-          (this.topReferencePoint.position.y +
-            this.rightReferencePoint.position.y) /
-          2,
-      };
-      const midLeftRight = {
-        x:
-          (this.leftReferencePoint.position.x +
-            this.rightReferencePoint.position.x) /
-          2,
-        y:
-          (this.leftReferencePoint.position.y +
-            this.rightReferencePoint.position.y) /
-          2,
-      };
-
-      drawingCanvasCtx.fillStyle = "black";
-      drawingCanvasCtx.font = "18px Arial";
-      drawingCanvasCtx.fillText(
-        rTob.toFixed(2),
-        midTopLeft.x,
-        midTopLeft.y - 5
-      );
-      drawingCanvasCtx.fillText(
-        rTog.toFixed(2),
-        midTopRight.x,
-        midTopRight.y - 5
-      );
-      drawingCanvasCtx.fillText(
-        bTor.toFixed(2),
-        midLeftRight.x,
-        midLeftRight.y - 5
-      );
-
-      const triangleMid = midTriangle(
-        this.topReferencePoint.position,
-        this.leftReferencePoint.position,
-        this.rightReferencePoint.position
-      );
-      // draw triangleMid as a circle
-      drawingCanvasCtx.beginPath();
-      drawingCanvasCtx.arc(triangleMid.x, triangleMid.y, 5, 0, 2 * Math.PI);
-      drawingCanvasCtx.fillStyle = "red";
-      drawingCanvasCtx.fill();
-      // write the tringleMid as well on the canvas
-      drawingCanvasCtx.fillText(
-        `(${triangleMid.x.toFixed(2)}, ${triangleMid.y.toFixed(2)})`,
-        triangleMid.x,
-        triangleMid.y - 5
-      );
-
-      // draw a triangle from (topReferencePoint.position.x, topReferencePoint.position.x)  to
-      // (topReferencePoint.position.x, triangleMid.y) to (triangleMid.x, triangleMid.y)
-      drawingCanvasCtx.beginPath();
-      drawingCanvasCtx.moveTo(
-        this.topReferencePoint.position.x,
-        this.topReferencePoint.position.y
-      );
-      drawingCanvasCtx.lineTo(this.topReferencePoint.position.x, triangleMid.y);
-      drawingCanvasCtx.lineTo(triangleMid.x, triangleMid.y);
-      drawingCanvasCtx.closePath();
-      drawingCanvasCtx.strokeStyle = "white";
-      drawingCanvasCtx.stroke();
-    }
   }
 
   getRGB_Distances() {
@@ -283,17 +183,12 @@ class Triangle {
     this.initMid = null;
     this.area = 0;
     this.previousArea = 0;
-    this.previous_x = canvasMidWidth;
     this.canvasMidWidth = canvasMidWidth;
     this.canvasMidHeight = canvasMidHeight;
     this.initArea = 0;
-    this.initRedToBlueDist = 0;
-    this.initRedToGreenDist = 0;
-    this.initBlueToGreenDist = 0;
     this.redToBlueDist = 0;
     this.redToGreenDist = 0;
     this.blueToGreenDist = 0;
-    this.initAngleAtRed = 0;
   }
 
   setRGB_distances(distances) {
@@ -302,55 +197,51 @@ class Triangle {
     this.blueToGreenDist = distances.blueToGreen;
   }
 
-  get_y_displacement() {
-    const midHeight = this.canvasMidHeight;
-    if (this.initArea === 0) {
-      return midHeight;
-    }
-
-    const areaRatio = this.triangleBoundingBoxAreaRatio();
-    let y = midHeight * areaRatio;
-    // y = calculateNewDistanceBasedOnArea(midHeight, this.initArea, this.area);
-
-    y = midHeight + (midHeight - y); // ensures y axis increases downwards of canvas
-    return y;
-  }
-
   triangleBoundingBoxAreaRatio() {
     return this.area / this.initArea;
   }
 
-  get_x_displacement() {
-    const midwidth = this.canvasMidWidth;
+  getHypot() {
+    const newPos = this.getNewPos();
 
-    const { opp, adj } = this.getOppositeAdjacent();
-    const angle = calculateAngleFromOppositeAdjacent(opp, adj);
-    const adjAsY = this.get_y_displacement();
-
-    const oppAsX = calculateOpposite(angle, adjAsY);
-    const x = oppAsX + midwidth;
-    // console.table({
-    //   angle,
-    //   adjAsY,
-    //   oppAsX,
-    //   x,
-    //   opp,
-    //   adj,
-    // });
-    return x;
+    return distance(this.initMid, newPos);
   }
 
-  getOppositeAdjacent() {
-    let adj = this.top.position.y - this.mid.y;
-    let opp = this.mid.x - this.top.position.x;
-    return { opp, adj };
+  getNewPos() {
+    const areaRatio = this.area / this.initArea;
+    if (this.initArea === 0 || areaRatio === 1) {
+      return this.initMid;
+    }
+
+    const scaleFactor = Math.sqrt(areaRatio);
+
+    const newPos = {
+      x: this.initMid.x * scaleFactor,
+      y: this.initMid.y * scaleFactor,
+    };
+
+    return newPos;
   }
 
   getDrawingCoordinates() {
-    return {
-      x: this.get_x_displacement(),
-      y: this.get_y_displacement(),
-    };
+    return this.getXY();
+  }
+
+  getXY() {
+    const newPos = this.getNewPos();
+    const angle = this.getAngleOffMid();
+
+    const correctPos = rotateAroundCenter(newPos, this.initMid, angle);
+    return correctPos;
+  }
+
+  getAngleOffMid() {
+    const triangleMid = midTriangle(
+      this.top.position,
+      this.left.position,
+      this.right.position
+    );
+    return 0;
   }
 
   update() {
@@ -469,4 +360,19 @@ function calculateOpposite(angleRad, adjacent) {
   const opposite = Math.tan(angleRad) * Math.abs(adjacent);
 
   return opposite * Math.sign(adjacent);
+}
+
+function rotateAroundCenter(v, center, angle) {
+  // Translate point to 0,0
+  let translatedX = v.x - center.x;
+  let translatedY = v.y - center.y;
+
+  let rotatedX = translatedX * Math.cos(angle) - translatedY * Math.sin(angle);
+  let rotatedY = translatedX * Math.sin(angle) + translatedY * Math.cos(angle);
+
+  // Translate back to center.x, center.y
+  return {
+    x: rotatedX + center.x,
+    y: rotatedY + center.y,
+  };
 }
