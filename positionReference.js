@@ -16,7 +16,7 @@ class PositionReference {
   updatePosition(ctx, drawingCanvas = null) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
-    const threshod = 50;
+    const threshod = 20;
     const redBox = {
       minX: Infinity,
       minY: Infinity,

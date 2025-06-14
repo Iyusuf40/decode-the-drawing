@@ -21,7 +21,7 @@ const fileWriter = new FileWriter();
 
 const DRAW_BALL_AREAS = true;
 const DRAW_DECODED_DRAWING_LIVE = true;
-const DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = true;
+const DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
 
 function init() {
   const rightReferencePoint = new ReferencePoint("rightRef");
