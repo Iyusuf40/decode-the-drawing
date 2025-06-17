@@ -11,6 +11,7 @@ const drawingCanvas = document.getElementById("drawingCanvas");
 
 let videoElement = null;
 let positionReference = null;
+let zline = null;
 let triangle = null;
 let animationFramHandle = null;
 let videoFileName = "";
@@ -19,9 +20,9 @@ const fileWriter = new FileWriter();
 
 // configuration
 
-const DRAW_BALL_AREAS = true;
-const DRAW_DECODED_DRAWING_LIVE = true;
-const DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
+let DRAW_BALL_AREAS = true;
+let DRAW_DECODED_DRAWING_LIVE = true;
+let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
 
 function init() {
   const rightReferencePoint = new ReferencePoint("rightRef");
@@ -42,6 +43,7 @@ function init() {
     topReferencePoint,
     triangle
   );
+  zline = new Zline(canvas, triangle.mid);
 }
 
 function resetDrawings() {
@@ -58,8 +60,10 @@ function updateCanvas() {
     positionReference.updatePosition(ctx, debugCanvas);
     triangle.setRGB_distances(positionReference.getRGB_Distances());
     triangle.update();
+    zline.update(triangle);
+    zline.draw();
 
-    const { x, y } = triangle.getDrawingCoordinates();
+    const { x, y } = triangle.getDrawingCoordinates(zline.angle);
     if (DRAW_DECODED_DRAWING_LIVE) {
       canvasWriter.write(x, y, drawingCanvas);
     }
@@ -147,6 +151,24 @@ document.addEventListener("DOMContentLoaded", () => {
     drawingCanvas.style.display = "none";
   }
   init();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "d") {
+    DRAW_BALL_AREAS = !DRAW_BALL_AREAS;
+  }
+  if (event.key === " ") {
+    event.preventDefault();
+    if (videoElement) {
+      if (videoElement.paused) {
+        videoElement.play();
+        updateCanvas();
+      } else {
+        videoElement.pause();
+        cancelAnimationFrame(animationFramHandle);
+      }
+    }
+  }
 });
 
 // utilities

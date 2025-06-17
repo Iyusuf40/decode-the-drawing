@@ -76,7 +76,7 @@ class PositionReference {
     containerBox.minY = Math.min(redBox.minY, blueBox.minY, greenBox.minY);
     containerBox.maxX = Math.max(redBox.maxX, blueBox.maxX, greenBox.maxX);
     containerBox.maxY = Math.max(redBox.maxY, blueBox.maxY, greenBox.maxY);
-    if (drawingCanvas) {
+    if (drawingCanvas && DRAW_BALL_AREAS) {
       const drawingCanvasCtx = drawingCanvas.getContext("2d");
       if (drawingCanvas.id === "drawingCanvas") {
         drawingCanvasCtx.clearRect(
@@ -105,8 +105,6 @@ class PositionReference {
         containerBox.maxX - containerBox.minX,
         containerBox.maxY - containerBox.minY
       );
-      drawingCanvasCtx.strokeStyle = "blue";
-      drawingCanvasCtx.stroke();
     }
     this.topReferencePoint.updatePositionAndArea(redBox);
     this.leftReferencePoint.updatePositionAndArea(blueBox);
@@ -135,6 +133,57 @@ class PositionReference {
       redToGreen: this.redToGreenDist,
       blueToGreen: this.blueToGreenDist,
     };
+  }
+}
+
+class Zline {
+  constructor(canvas, triangleMid) {
+    this.distance = 100;
+    this.canvas = canvas;
+    this.p1 = {
+      x: triangleMid.x - this.distance / 2,
+      y: triangleMid.y,
+    };
+    this.p2 = {
+      x: triangleMid.x + this.distance / 2,
+      y: triangleMid.y,
+    };
+    this.angle = 0;
+  }
+
+  update({ top, left, right }) {
+    const leftBottom = {
+      x: (left.box.minX + left.box.maxX) / 2,
+      y: left.box.maxY,
+    };
+    const rightBottom = {
+      x: (right.box.minX + right.box.maxX) / 2,
+      y: right.box.maxY,
+    };
+
+    const lowerPoint = leftBottom.y > rightBottom.y ? leftBottom : rightBottom;
+    const upperPoint = lowerPoint == leftBottom ? rightBottom : leftBottom;
+
+    const hyp = distance(lowerPoint, upperPoint);
+    const opp = distance({ x: upperPoint.x, y: lowerPoint.y }, upperPoint);
+    let angle = getAngleFromHypotenusAndOpposite(hyp, opp);
+    if (upperPoint == rightBottom) angle *= -1;
+    this.angle = angle;
+
+    this.p1 = leftBottom;
+    this.p2 = rightBottom;
+
+    // check the angle that bottom green makes with bottom blue
+    // use same angle as measure of angle looked at from camera
+  }
+
+  draw() {
+    // const ctx = this.canvas.getContext("2d");
+    // ctx.moveTo(this.p1.x, this.p1.y);
+    // ctx.lineTo(this.p2.x, this.p2.y);
+    // ctx.strokeWidth = 4;
+    // ctx.strokeStyle = "white";
+    // ctx.stroke();
   }
 }
 
@@ -223,25 +272,15 @@ class Triangle {
     return newPos;
   }
 
-  getDrawingCoordinates() {
-    return this.getXY();
+  getDrawingCoordinates(angle) {
+    return this.getXY(angle);
   }
 
-  getXY() {
+  getXY(angle) {
     const newPos = this.getNewPos();
-    const angle = this.getAngleOffMid();
 
     const correctPos = rotateAroundCenter(newPos, this.initMid, angle);
     return correctPos;
-  }
-
-  getAngleOffMid() {
-    const triangleMid = midTriangle(
-      this.top.position,
-      this.left.position,
-      this.right.position
-    );
-    return 0;
   }
 
   update() {
@@ -350,6 +389,10 @@ function calculateAngleFromOppositeAdjacent(opposite, adjacent) {
   const angleRadians = Math.atan2(opposite, adjacent);
 
   return angleRadians;
+}
+
+function getAngleFromHypotenusAndOpposite(hypotenus, opposite) {
+  return Math.asin(opposite / hypotenus);
 }
 
 function calculateOpposite(angleRad, adjacent) {
