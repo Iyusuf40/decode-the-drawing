@@ -13,6 +13,10 @@ class PositionReference {
     this.leftReferencePoint = leftReferencePoint;
     this.topReferencePoint = topReferencePoint;
     this.triangle = triangle;
+    this.origin = {
+      x: videoWidth / 2,
+      y: videoHeight,
+    };
   }
 
   updatePosition(ctx, drawingCanvas = null) {
@@ -136,54 +140,105 @@ class PositionReference {
   }
 }
 
-class Zline {
-  constructor(canvas, triangleMid) {
-    this.distance = 100;
+class TriangulationHandler {
+  constructor(canvas) {
     this.canvas = canvas;
-    this.p1 = {
-      x: triangleMid.x - this.distance / 2,
-      y: triangleMid.y,
+    this.left = null;
+    this.right = null;
+    this.top = null;
+    this.initLeft = null;
+    this.initRight = null;
+    this.initTop = null;
+    this.angles = null;
+    this.origin = {
+      x: canvas.width / 2,
+      y: canvas.height,
     };
-    this.p2 = {
-      x: triangleMid.x + this.distance / 2,
-      y: triangleMid.y,
-    };
-    this.angle = 0;
   }
 
-  update({ top, left, right }) {
-    const leftBottom = {
-      x: (left.box.minX + left.box.maxX) / 2,
-      y: left.box.maxY,
+  update(left, right, top) {
+    if (this.initLeft === null) {
+      this.initLeft = JSON.parse(JSON.stringify(left));
+      this.initRight = JSON.parse(JSON.stringify(right));
+      this.initTop = JSON.parse(JSON.stringify(top));
+    }
+    this.left = left;
+    this.right = right;
+    this.top = top;
+    this.angles = getTriangleAngles(
+      distance(this.origin, this.left.position),
+      distance(this.origin, this.right.position),
+      distance(this.left.position, this.right.position)
+    );
+  }
+
+  getCurrentPosition() {
+    const currentPosition = getOriginPoint(
+      this.initLeft.position,
+      this.initRight.position,
+      this.angles.angleAtLeftDegrees,
+      this.angles.angleAtRightDegrees
+    );
+
+    return this.translateToOtherPlane(currentPosition);
+  }
+
+  translateToOtherPlane(currentPosition) {
+    return {
+      x: currentPosition.x,
+      y: -this.origin.y + currentPosition.y + 100,
     };
-    const rightBottom = {
-      x: (right.box.minX + right.box.maxX) / 2,
-      y: right.box.maxY,
-    };
-
-    const lowerPoint = leftBottom.y > rightBottom.y ? leftBottom : rightBottom;
-    const upperPoint = lowerPoint == leftBottom ? rightBottom : leftBottom;
-
-    const hyp = distance(lowerPoint, upperPoint);
-    const opp = distance({ x: upperPoint.x, y: lowerPoint.y }, upperPoint);
-    let angle = getAngleFromHypotenusAndOpposite(hyp, opp);
-    if (upperPoint == rightBottom) angle *= -1;
-    this.angle = angle;
-
-    this.p1 = leftBottom;
-    this.p2 = rightBottom;
-
-    // check the angle that bottom green makes with bottom blue
-    // use same angle as measure of angle looked at from camera
   }
 
   draw() {
-    // const ctx = this.canvas.getContext("2d");
-    // ctx.moveTo(this.p1.x, this.p1.y);
-    // ctx.lineTo(this.p2.x, this.p2.y);
-    // ctx.strokeWidth = 4;
-    // ctx.strokeStyle = "white";
+    const ctx = canvas.getContext("2d");
+    // draw lines from origin to center of boxes
+
+    // ctx.strokeStyle = "red";
+    // ctx.beginPath();
+    // ctx.moveTo(this.origin.x, this.origin.y);
+    // ctx.lineTo(this.top.position.x, this.top.position.y);
     // ctx.stroke();
+
+    ctx.strokeStyle = "blue";
+    ctx.beginPath();
+    ctx.moveTo(this.origin.x, this.origin.y);
+    ctx.lineTo(this.left.position.x, this.left.position.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = "green";
+    ctx.beginPath();
+    ctx.moveTo(this.origin.x, this.origin.y);
+    ctx.lineTo(this.right.position.x, this.right.position.y);
+    ctx.stroke();
+
+    // draw blue line between right and left
+    ctx.strokeStyle = "blue";
+    ctx.beginPath();
+    ctx.moveTo(this.left.position.x, this.left.position.y);
+    ctx.lineTo(this.right.position.x, this.right.position.y);
+    ctx.stroke();
+
+    const angles = this.angles;
+    // draw angles at their points
+    ctx.fillStyle = "black";
+    ctx.font = "20px Arial";
+    ctx.fillText(
+      `Origin Angle: ${angles.angleAtOriginDegrees.toFixed(2)}°`,
+      this.origin.x + 10,
+      this.origin.y - 10
+    );
+    ctx.fillText(
+      `Left Angle: ${angles.angleAtLeftDegrees.toFixed(2)}°`,
+      this.left.position.x + 10,
+      this.left.position.y + 10
+    );
+    ctx.fillText(
+      `Right Angle: ${angles.angleAtRightDegrees.toFixed(2)}°`,
+      this.right.position.x + 10,
+      this.right.position.y + 10
+    );
+    // console.log(this.left.position, this.right.position, this.origin);
   }
 }
 
@@ -315,94 +370,117 @@ class Triangle {
   }
 }
 
-function calculateNewDistanceBasedOnArea(
-  initialDistance,
-  initialArea,
-  newArea
-) {
-  const areaRatio = initialArea / newArea;
-  const distanceRatio = Math.sqrt(areaRatio);
-  const newDistance = initialDistance * distanceRatio;
-
-  return newDistance;
-}
-
 function distance(point1, point2) {
   const dx = Math.abs(point2.x - point1.x);
   const dy = Math.abs(point2.y - point1.y);
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-function anglesOfTriangleFromCosineRule(a, b, c) {
-  if (a + b <= c || a + c <= b || b + c <= a) {
-    throw new Error("Error: The given sides cannot form a triangle.");
+function radiansToDegrees(radians) {
+  return radians * (180 / Math.PI);
+}
+
+function degreesToRadians(degrees) {
+  return degrees * (Math.PI / 180);
+}
+
+function getTriangleAngles(origin2left, origin2right, left2right) {
+  const sides = [origin2left, origin2right, left2right].sort((a, b) => a - b);
+  if (sides[0] + sides[1] <= sides[2]) {
+    console.error(
+      "Invalid triangle: The given side lengths do not form a valid triangle."
+    );
+    return null;
   }
-
-  const cosA = (b * b + c * c - a * a) / (2 * b * c);
-  const angleA_rad = Math.acos(cosA);
-  const angleA_deg = angleA_rad * (180 / Math.PI);
-
-  const cosB = (a * a + c * c - b * b) / (2 * a * c);
-  const angleB_rad = Math.acos(cosB);
-  const angleB_deg = angleB_rad * (180 / Math.PI);
-
-  const cosC = (a * a + b * b - c * c) / (2 * a * b);
-  const angleC_rad = Math.acos(cosC);
-  const angleC_deg = angleC_rad * (180 / Math.PI);
-
+  const a = origin2right;
+  const b = origin2left;
+  const c = left2right;
+  const angleAtOriginRad = Math.acos((b * b + a * a - c * c) / (2 * b * a));
+  const angleAtLeftRad = Math.acos((b * b + c * c - a * a) / (2 * b * c));
+  const angleAtRightRad = Math.acos((a * a + c * c - b * b) / (2 * a * c));
   return {
-    angleA: angleA_deg,
-    angleB: angleB_deg,
-    angleC: angleC_deg,
+    angleAtOrigin: angleAtOriginRad,
+    angleAtLeft: angleAtLeftRad,
+    angleAtRight: angleAtRightRad,
+    angleAtOriginDegrees: radiansToDegrees(angleAtOriginRad),
+    angleAtLeftDegrees: radiansToDegrees(angleAtLeftRad),
+    angleAtRightDegrees: radiansToDegrees(angleAtRightRad),
   };
 }
 
-function computeXFromAngleChange(h, b, thetaDegrees) {
-  const theta = (thetaDegrees * Math.PI) / 180;
+function getOriginPoint(
+  leftPoint,
+  rightPoint,
+  angleAtLeftDegrees,
+  angleAtRightDegrees
+) {
+  const angleAtLeftRad = degreesToRadians(angleAtLeftDegrees);
+  const angleAtRightRad = degreesToRadians(angleAtRightDegrees);
 
-  // Binary search for x
-  let low = -1000,
-    high = 1000;
-  let epsilon = 1e-6;
-  let mid;
-
-  while (high - low > epsilon) {
-    mid = (low + high) / 2;
-    const angle = Math.atan(h / (mid + b / 2)) + Math.atan(h / (-mid + b / 2));
-    if (angle < theta) {
-      high = mid;
-    } else {
-      low = mid;
-    }
+  if (
+    angleAtLeftRad <= 0 ||
+    angleAtRightRad <= 0 ||
+    angleAtLeftRad >= Math.PI ||
+    angleAtRightRad >= Math.PI
+  ) {
+    console.error(
+      "Invalid input angles: Angles must be positive and less than 180 degrees."
+    );
+    return null;
   }
 
-  return mid;
+  const angleAtOriginRad = Math.PI - angleAtLeftRad - angleAtRightRad;
+
+  if (angleAtOriginRad <= 0 || angleAtOriginRad >= Math.PI) {
+    console.error(
+      "Invalid triangle: Sum of given angles is too large or too small, or results in a degenerate triangle."
+    );
+    return null;
+  }
+
+  const left2right = distance(leftPoint, rightPoint);
+
+  if (left2right === 0) {
+    console.error(
+      "Invalid triangle: Left and Right points are coincident, cannot form a triangle."
+    );
+    return null;
+  }
+
+  const origin2left =
+    (left2right * Math.sin(angleAtRightRad)) / Math.sin(angleAtOriginRad);
+
+  const origin2right =
+    (left2right * Math.sin(angleAtLeftRad)) / Math.sin(angleAtOriginRad);
+
+  if (
+    origin2left <= 0 ||
+    !Number.isFinite(origin2left) ||
+    origin2right <= 0 ||
+    !Number.isFinite(origin2right)
+  ) {
+    console.error(
+      "Invalid triangle: Calculated side lengths are non-positive or infinite (likely due to angleAtOriginRad being close to 0 or PI)."
+    );
+    return null;
+  }
+
+  const dxLR = rightPoint.x - leftPoint.x;
+  const dyLR = rightPoint.y - leftPoint.y;
+  const baseAngleLR = Math.atan2(dyLR, dxLR);
+
+  const angleLO = baseAngleLR + angleAtLeftRad;
+
+  const originX = leftPoint.x + origin2left * Math.cos(angleLO);
+  const originY = leftPoint.y + origin2left * Math.sin(angleLO);
+
+  return { x: originX, y: originY };
 }
 
 function midTriangle(a, b, c) {
   const midX = (a.x + b.x + c.x) / 3;
   const midY = (a.y + b.y + c.y) / 3;
   return { x: midX, y: midY };
-}
-
-function calculateAngleFromOppositeAdjacent(opposite, adjacent) {
-  const angleRadians = Math.atan2(opposite, adjacent);
-
-  return angleRadians;
-}
-
-function getAngleFromHypotenusAndOpposite(hypotenus, opposite) {
-  return Math.asin(opposite / hypotenus);
-}
-
-function calculateOpposite(angleRad, adjacent) {
-  if (angleRad === 0) {
-    return 0;
-  }
-
-  const opposite = Math.tan(angleRad) * Math.abs(adjacent);
-
-  return opposite * Math.sign(adjacent);
 }
 
 function rotateAroundCenter(v, center, angle) {
