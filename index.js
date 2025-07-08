@@ -11,7 +11,7 @@ const drawingCanvas = document.getElementById("drawingCanvas");
 
 let videoElement = null;
 let positionReference = null;
-let triangulationHandler = null;
+let trilaterationHandler = null;
 let triangle = null;
 let animationFramHandle = null;
 let videoFileName = "";
@@ -43,7 +43,7 @@ function init() {
     topReferencePoint,
     triangle
   );
-  triangulationHandler = new TriangulationHandler(canvas);
+  trilaterationHandler = new TrilaterationHandler(canvas);
 }
 
 function resetDrawings() {
@@ -60,14 +60,13 @@ function updateCanvas() {
     positionReference.updatePosition(ctx, debugCanvas);
     triangle.setRGB_distances(positionReference.getRGB_Distances());
     triangle.update();
-    triangulationHandler.update(
+    trilaterationHandler.update(
       positionReference.leftReferencePoint,
       positionReference.rightReferencePoint,
       positionReference.topReferencePoint
     );
-    triangulationHandler.draw();
 
-    const { x, y } = triangulationHandler.getCurrentPosition();
+    const { x, y } = trilaterationHandler.getCurrentPosition();
     if (DRAW_DECODED_DRAWING_LIVE) {
       canvasWriter.write(x, y, drawingCanvas);
     }

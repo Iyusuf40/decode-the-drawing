@@ -113,22 +113,6 @@ class PositionReference {
     this.topReferencePoint.updatePositionAndArea(redBox);
     this.leftReferencePoint.updatePositionAndArea(blueBox);
     this.rightReferencePoint.updatePositionAndArea(greenBox);
-    const rTob = distance(
-      this.topReferencePoint.position,
-      this.leftReferencePoint.position
-    );
-    const rTog = distance(
-      this.topReferencePoint.position,
-      this.rightReferencePoint.position
-    );
-
-    const bTor = distance(
-      this.leftReferencePoint.position,
-      this.rightReferencePoint.position
-    );
-    this.redToBlueDist = rTob;
-    this.redToGreenDist = rTog;
-    this.blueToGreenDist = bTor;
   }
 
   getRGB_Distances() {
@@ -140,7 +124,7 @@ class PositionReference {
   }
 }
 
-class TriangulationHandler {
+class TrilaterationHandler {
   constructor(canvas) {
     this.canvas = canvas;
     this.left = null;
@@ -149,11 +133,15 @@ class TriangulationHandler {
     this.initLeft = null;
     this.initRight = null;
     this.initTop = null;
-    this.angles = null;
     this.origin = {
       x: canvas.width / 2,
       y: canvas.height,
     };
+    this.F = 0;
+  }
+
+  getBallDistance(P) {
+    return (this.W * this.F) / P;
   }
 
   update(left, right, top) {
@@ -161,84 +149,43 @@ class TriangulationHandler {
       this.initLeft = JSON.parse(JSON.stringify(left));
       this.initRight = JSON.parse(JSON.stringify(right));
       this.initTop = JSON.parse(JSON.stringify(top));
+      const P = top.box.maxX - top.box.minX;
+      const W = centimeterToPixel(6);
+      const D = centimeterToPixel(18);
+      this.F = (P * D) / W;
+      this.W = W;
     }
     this.left = left;
     this.right = right;
     this.top = top;
-    this.angles = getTriangleAngles(
-      distance(this.origin, this.left.position),
-      distance(this.origin, this.right.position),
-      distance(this.left.position, this.right.position)
-    );
   }
 
   getCurrentPosition() {
-    const currentPosition = getOriginPoint(
-      this.initLeft.position,
-      this.initRight.position,
-      this.angles.angleAtLeftDegrees,
-      this.angles.angleAtRightDegrees
-    );
+    let r1 = this.getBallDistance(this.left.box.maxX - this.left.box.minX);
+    let r2 = this.getBallDistance(this.right.box.maxX - this.right.box.minX);
+    let r3 = this.getBallDistance(this.top.box.maxX - this.top.box.minX);
 
-    return this.translateToOtherPlane(currentPosition);
+    const U = this.right.position.x;
+    const Vx = this.top.position.x;
+    const Vy = this.top.position.y;
+
+    const x = (square(r1) - square(r2) + square(U)) / (2 * U);
+    const y =
+      (square(r1) - square(r3) + square(Vx) + square(Vy) - 2 * Vx * x) /
+      (2 * Vy);
+
+    const opResult = square(r1) - square(x) - square(y);
+
+    const z = sqrt(Math.abs(opResult));
+
+    return this.translateToOtherPlane({ x, y, z });
   }
 
-  translateToOtherPlane(currentPosition) {
+  translateToOtherPlane({ x, y, z }) {
     return {
-      x: currentPosition.x,
-      y: -this.origin.y + currentPosition.y + 100,
+      x: x,
+      y: z - this.canvas.height / 2 - 50,
     };
-  }
-
-  draw() {
-    const ctx = canvas.getContext("2d");
-    // draw lines from origin to center of boxes
-
-    // ctx.strokeStyle = "red";
-    // ctx.beginPath();
-    // ctx.moveTo(this.origin.x, this.origin.y);
-    // ctx.lineTo(this.top.position.x, this.top.position.y);
-    // ctx.stroke();
-
-    ctx.strokeStyle = "blue";
-    ctx.beginPath();
-    ctx.moveTo(this.origin.x, this.origin.y);
-    ctx.lineTo(this.left.position.x, this.left.position.y);
-    ctx.stroke();
-
-    ctx.strokeStyle = "green";
-    ctx.beginPath();
-    ctx.moveTo(this.origin.x, this.origin.y);
-    ctx.lineTo(this.right.position.x, this.right.position.y);
-    ctx.stroke();
-
-    // draw blue line between right and left
-    ctx.strokeStyle = "blue";
-    ctx.beginPath();
-    ctx.moveTo(this.left.position.x, this.left.position.y);
-    ctx.lineTo(this.right.position.x, this.right.position.y);
-    ctx.stroke();
-
-    const angles = this.angles;
-    // draw angles at their points
-    ctx.fillStyle = "black";
-    ctx.font = "20px Arial";
-    ctx.fillText(
-      `Origin Angle: ${angles.angleAtOriginDegrees.toFixed(2)}°`,
-      this.origin.x + 10,
-      this.origin.y - 10
-    );
-    ctx.fillText(
-      `Left Angle: ${angles.angleAtLeftDegrees.toFixed(2)}°`,
-      this.left.position.x + 10,
-      this.left.position.y + 10
-    );
-    ctx.fillText(
-      `Right Angle: ${angles.angleAtRightDegrees.toFixed(2)}°`,
-      this.right.position.x + 10,
-      this.right.position.y + 10
-    );
-    // console.log(this.left.position, this.right.position, this.origin);
   }
 }
 
@@ -496,4 +443,23 @@ function rotateAroundCenter(v, center, angle) {
     x: rotatedX + center.x,
     y: rotatedY + center.y,
   };
+}
+
+function square(n) {
+  return Math.pow(n, 2);
+}
+
+function sqrt(n) {
+  return Math.sqrt(n);
+}
+
+function centimeterToPixel(cm) {
+  // Assuming a standard DPI of 96 for web, 1 inch = 96 pixels, and 1 inch = 2.54 cm
+  const pixelsPerCm = 96 / 2.54;
+  return cm * pixelsPerCm;
+}
+
+function pixelToCentimeter(pixels) {
+  const pixelsPerCm = 96 / 2.54;
+  return pixels / pixelsPerCm;
 }
