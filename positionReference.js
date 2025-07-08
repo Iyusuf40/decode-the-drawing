@@ -200,6 +200,12 @@ class ReferencePoint {
     this.box = null;
   }
 
+  static fromBox(box) {
+    const refPoint = new ReferencePoint();
+    refPoint.updatePositionAndArea(box);
+    return refPoint;
+  }
+
   updatePositionAndArea(box) {
     this.previousPosition = this.position;
     this.previousArea = this.area;

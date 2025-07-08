@@ -1,7 +1,11 @@
 const canvas = document.getElementById("myCanvas");
 const ctx = canvas.getContext("2d");
 const loadVideoButton = document.getElementById("loadVideoButton");
+const loadSerializedVideoButton = document.getElementById(
+  "loadSerializedVideoButton"
+);
 const fileInput = document.getElementById("videoInput");
+const serializedVideoInput = document.getElementById("serializedVideoInput");
 const coordinatesInput = document.getElementById("coordinatesInput");
 const loadCoordinatesButton = document.getElementById("loadCoordinatesButton");
 const replayVideoButton = document.getElementById("replayVideoButton");
@@ -17,12 +21,14 @@ let animationFramHandle = null;
 let videoFileName = "";
 const canvasWriter = new CanvasWriter();
 const fileWriter = new FileWriter();
+const videoSerializer = new VideoSerializer();
 
 // configuration
 
 let DRAW_BALL_AREAS = true;
 let DRAW_DECODED_DRAWING_LIVE = true;
 let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
+let DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END = true;
 
 function init() {
   const rightReferencePoint = new ReferencePoint("rightRef");
@@ -75,11 +81,33 @@ function updateCanvas() {
       fileWriter.write(x, y);
     }
 
+    if (DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END) {
+      videoSerializer.write(
+        positionReference.leftReferencePoint,
+        positionReference.rightReferencePoint,
+        positionReference.topReferencePoint
+      );
+    }
+
     animationFramHandle = requestAnimationFrame(updateCanvas);
   }
 }
 
+function playSerializedVideo(serializedVideo) {
+  for (const state of serializedVideo) {
+    trilaterationHandler.update(state.left, state.right, state.top);
+    const { x, y } = trilaterationHandler.getCurrentPosition();
+    canvasWriter.write(x, y, drawingCanvas);
+  }
+}
+
 // event handlers
+
+loadSerializedVideoButton.addEventListener("click", () => {
+  serializedVideoInput.click();
+});
+
+serializedVideoInput.addEventListener("change", handleSerializedVideoFile);
 
 loadCoordinatesButton.addEventListener("click", () => {
   coordinatesInput.click();
@@ -116,6 +144,9 @@ fileInput.addEventListener("change", (event) => {
       cancelAnimationFrame(animationFramHandle);
       if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
         fileWriter.download(`${videoFileName}.txt`);
+      }
+      if (DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END) {
+        videoSerializer.download(`${videoFileName}.json`);
       }
     });
   }
@@ -219,6 +250,26 @@ function handleCoordinatesFile(e) {
       const fileContent = event.target.result;
       const coordinates = parseCoordinates(fileContent);
       drawImageFromCoordinates(coordinates);
+    };
+    reader.readAsText(file);
+  }
+}
+
+function handleSerializedVideoFile(e) {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      const fileContent = event.target.result;
+      const data = JSON.parse(fileContent);
+      const serializedVideo = data.map((state) => {
+        return {
+          left: ReferencePoint.fromBox(state.left),
+          right: ReferencePoint.fromBox(state.right),
+          top: ReferencePoint.fromBox(state.top),
+        };
+      });
+      playSerializedVideo(serializedVideo);
     };
     reader.readAsText(file);
   }

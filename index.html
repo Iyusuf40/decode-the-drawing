@@ -29,6 +29,7 @@
   <body>
     <div class="buttons">
       <button id="loadVideoButton">Load Video</button>
+      <button id="loadSerializedVideoButton">Load Serialized Video</button>
       <button id="loadCoordinatesButton">Load Coordinates</button>
       <button id="replayVideoButton">Replay Video</button>
       <button id="playVideoButton">Play Video</button>
@@ -43,6 +44,12 @@
     ></canvas>
 
     <input type="file" id="videoInput" accept="video/*" style="display: none" />
+    <input
+      type="file"
+      id="serializedVideoInput"
+      accept=".json"
+      style="display: none"
+    />
     <input
       type="file"
       id="coordinatesInput"

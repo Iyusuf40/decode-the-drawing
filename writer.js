@@ -48,3 +48,32 @@ class FileWriter {
     URL.revokeObjectURL(url);
   }
 }
+
+class VideoSerializer {
+  constructor() {
+    this.state = [];
+  }
+
+  write(left, right, top) {
+    this.state.push({
+      left: JSON.parse(JSON.stringify(left.box)),
+      right: JSON.parse(JSON.stringify(right.box)),
+      top: JSON.parse(JSON.stringify(top.box)),
+    });
+  }
+
+  reset() {
+    this.state = [];
+  }
+
+  download(filename = "video.json") {
+    const data = JSON.stringify(this.state);
+    const blob = new Blob([data], { type: "text/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
