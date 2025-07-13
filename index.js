@@ -57,6 +57,7 @@ function resetDrawings() {
   drawingCanvasCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
   canvasWriter?.reset();
   fileWriter?.reset();
+  videoSerializer?.reset();
 }
 
 function updateCanvas() {
@@ -202,6 +203,26 @@ document.addEventListener("keydown", (event) => {
         cancelAnimationFrame(animationFramHandle);
       }
     }
+  }
+  if (["1", "2", "3", "4", "5", "6"].includes(event.key)) {
+    const imagesData = [
+      circleVideoData,
+      starVideoData,
+      houseVideoData,
+      questionMarkVideoData,
+      treeVideoData,
+      animeCharacterVideoData,
+    ];
+    const imageData = imagesData[parseInt(event.key) - 1];
+    resetDrawings();
+    const serializedVideo = imageData.map((state) => {
+      return {
+        left: ReferencePoint.fromBox(state.left),
+        right: ReferencePoint.fromBox(state.right),
+        top: ReferencePoint.fromBox(state.top),
+      };
+    });
+    playSerializedVideo(serializedVideo);
   }
 });
 

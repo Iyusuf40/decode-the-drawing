@@ -149,7 +149,7 @@ class TrilaterationHandler {
       this.initLeft = JSON.parse(JSON.stringify(left));
       this.initRight = JSON.parse(JSON.stringify(right));
       this.initTop = JSON.parse(JSON.stringify(top));
-      const P = top.box.maxX - top.box.minX;
+      const P = top.box.maxY - top.box.minY;
       const W = centimeterToPixel(6);
       const D = centimeterToPixel(18);
       this.F = (P * D) / W;
@@ -161,9 +161,9 @@ class TrilaterationHandler {
   }
 
   getCurrentPosition() {
-    let r1 = this.getBallDistance(this.left.box.maxX - this.left.box.minX);
-    let r2 = this.getBallDistance(this.right.box.maxX - this.right.box.minX);
-    let r3 = this.getBallDistance(this.top.box.maxX - this.top.box.minX);
+    let r1 = this.getBallDistance(this.left.box.maxY - this.left.box.minY);
+    let r2 = this.getBallDistance(this.right.box.maxY - this.right.box.minY);
+    let r3 = this.getBallDistance(this.top.box.maxY - this.top.box.minY);
 
     const U = this.right.position.x;
     const Vx = this.top.position.x;
@@ -182,9 +182,14 @@ class TrilaterationHandler {
   }
 
   translateToOtherPlane({ x, y, z }) {
+    // return {
+    //   x: x,
+    //   y: z - this.canvas.height / 2 - 225,
+    // };
+
     return {
       x: x,
-      y: z - this.canvas.height / 2 - 50,
+      y: z * 0.3,
     };
   }
 }
