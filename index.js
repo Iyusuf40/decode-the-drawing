@@ -16,12 +16,12 @@ const drawingCanvas = document.getElementById("drawingCanvas");
 let videoElement = null;
 let positionReference = null;
 let trilaterationHandler = null;
-let triangle = null;
 let animationFramHandle = null;
 let videoFileName = "";
 const canvasWriter = new CanvasWriter();
 const fileWriter = new FileWriter();
 const videoSerializer = new VideoSerializer();
+let pixelsPerCmCache = 0;
 
 // configuration
 
@@ -34,20 +34,12 @@ function init() {
   const rightReferencePoint = new ReferencePoint("rightRef");
   const leftReferencePoint = new ReferencePoint("leftRef");
   const topReferencePoint = new ReferencePoint("topRef");
-  triangle = new Triangle(
-    topReferencePoint,
-    leftReferencePoint,
-    rightReferencePoint,
-    canvas.width / 2,
-    canvas.height / 2
-  );
   positionReference = new PositionReference(
     canvas.width,
     canvas.height,
     leftReferencePoint,
     rightReferencePoint,
-    topReferencePoint,
-    triangle
+    topReferencePoint
   );
   trilaterationHandler = new TrilaterationHandler(canvas);
 }
@@ -65,8 +57,6 @@ function updateCanvas() {
     ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
     const debugCanvas = DRAW_BALL_AREAS ? canvas : null;
     positionReference.updatePosition(ctx, debugCanvas);
-    triangle.setRGB_distances(positionReference.getRGB_Distances());
-    triangle.update();
     trilaterationHandler.update(
       positionReference.leftReferencePoint,
       positionReference.rightReferencePoint,

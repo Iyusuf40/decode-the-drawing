@@ -4,15 +4,13 @@ class PositionReference {
     videoHeight = 720,
     leftReferencePoint,
     rightReferencePoint,
-    topReferencePoint,
-    triangle
+    topReferencePoint
   ) {
     this.videoWidth = videoWidth;
     this.videoHeight = videoHeight;
     this.rightReferencePoint = rightReferencePoint;
     this.leftReferencePoint = leftReferencePoint;
     this.topReferencePoint = topReferencePoint;
-    this.triangle = triangle;
     this.origin = {
       x: videoWidth / 2,
       y: videoHeight,
@@ -114,14 +112,6 @@ class PositionReference {
     this.leftReferencePoint.updatePositionAndArea(blueBox);
     this.rightReferencePoint.updatePositionAndArea(greenBox);
   }
-
-  getRGB_Distances() {
-    return {
-      redToBlue: this.redToBlueDist,
-      redToGreen: this.redToGreenDist,
-      blueToGreen: this.blueToGreenDist,
-    };
-  }
 }
 
 class TrilaterationHandler {
@@ -133,15 +123,9 @@ class TrilaterationHandler {
     this.initLeft = null;
     this.initRight = null;
     this.initTop = null;
-    this.origin = {
-      x: canvas.width / 2,
-      y: canvas.height,
-    };
-    this.F = 0;
-  }
-
-  getBallDistance(P) {
-    return (this.W * this.F) / P;
+    this.Ftop = 0;
+    this.Fright = 0;
+    this.Fleft = 0;
   }
 
   update(left, right, top) {
@@ -149,10 +133,18 @@ class TrilaterationHandler {
       this.initLeft = JSON.parse(JSON.stringify(left));
       this.initRight = JSON.parse(JSON.stringify(right));
       this.initTop = JSON.parse(JSON.stringify(top));
-      const P = top.box.maxY - top.box.minY;
-      const W = centimeterToPixel(6);
-      const D = centimeterToPixel(18);
-      this.F = (P * D) / W;
+      const Ptop = top.box.maxY - top.box.minY;
+      const Pright = right.box.maxY - right.box.minY;
+      const Pleft = left.box.maxY - left.box.minY;
+
+      const W = 6;
+      const D = 18;
+
+      const scale = 2;
+      this.Ftop = (scale * (Ptop * D)) / W;
+      this.Fright = (scale * (Pright * D)) / W;
+      this.Fleft = (scale * (Pleft * D)) / W;
+
       this.W = W;
     }
     this.left = left;
@@ -160,10 +152,43 @@ class TrilaterationHandler {
     this.top = top;
   }
 
+  getBallDistance(P, side) {
+    let val = 0,
+      f = 0;
+    switch (side) {
+      case "left":
+        f = this.Fleft;
+        break;
+      case "right":
+        f = this.Fright;
+        break;
+      case "top":
+        f = this.Ftop;
+        break;
+    }
+    if (!f) throw new Error("Unknown side");
+    val = (this.W * f) / P;
+    return centimeterToPixel(val);
+  }
+
+  getTopBallDistance(P) {
+    return this.getBallDistance(P, "top");
+  }
+
+  getRightBallDistance(P) {
+    return this.getBallDistance(P, "right");
+  }
+
+  getLeftBallDistance(P) {
+    return this.getBallDistance(P, "left");
+  }
+
   getCurrentPosition() {
-    let r1 = this.getBallDistance(this.left.box.maxY - this.left.box.minY);
-    let r2 = this.getBallDistance(this.right.box.maxY - this.right.box.minY);
-    let r3 = this.getBallDistance(this.top.box.maxY - this.top.box.minY);
+    let r1 = this.getLeftBallDistance(this.left.box.maxY - this.left.box.minY);
+    let r2 = this.getRightBallDistance(
+      this.right.box.maxY - this.right.box.minY
+    );
+    let r3 = this.getTopBallDistance(this.top.box.maxY - this.top.box.minY);
 
     const U = this.right.position.x;
     const Vx = this.top.position.x;
@@ -188,8 +213,8 @@ class TrilaterationHandler {
     // };
 
     return {
-      x: x,
-      y: z * 0.3,
+      x: x * 0.5 + this.canvas.width * 0.3,
+      y: z * 0.5 - this.canvas.height * 0.8,
     };
   }
 }
@@ -230,104 +255,6 @@ class ReferencePoint {
   }
 }
 
-class Triangle {
-  constructor(
-    topReferencePoint,
-    leftReferencePoint,
-    rightReferencePoint,
-    canvasMidWidth,
-    canvasMidHeight
-  ) {
-    this.top = topReferencePoint;
-    this.left = leftReferencePoint;
-    this.right = rightReferencePoint;
-    this.mid = 0;
-    this.initMid = null;
-    this.area = 0;
-    this.previousArea = 0;
-    this.canvasMidWidth = canvasMidWidth;
-    this.canvasMidHeight = canvasMidHeight;
-    this.initArea = 0;
-    this.redToBlueDist = 0;
-    this.redToGreenDist = 0;
-    this.blueToGreenDist = 0;
-  }
-
-  setRGB_distances(distances) {
-    this.redToBlueDist = distances.redToBlue;
-    this.redToGreenDist = distances.redToGreen;
-    this.blueToGreenDist = distances.blueToGreen;
-  }
-
-  triangleBoundingBoxAreaRatio() {
-    return this.area / this.initArea;
-  }
-
-  getHypot() {
-    const newPos = this.getNewPos();
-
-    return distance(this.initMid, newPos);
-  }
-
-  getNewPos() {
-    const areaRatio = this.area / this.initArea;
-    if (this.initArea === 0 || areaRatio === 1) {
-      return this.initMid;
-    }
-
-    const scaleFactor = Math.sqrt(areaRatio);
-
-    const newPos = {
-      x: this.initMid.x * scaleFactor,
-      y: this.initMid.y * scaleFactor,
-    };
-
-    return newPos;
-  }
-
-  getDrawingCoordinates(angle) {
-    return this.getXY(angle);
-  }
-
-  getXY(angle) {
-    const newPos = this.getNewPos();
-
-    const correctPos = rotateAroundCenter(newPos, this.initMid, angle);
-    return correctPos;
-  }
-
-  update() {
-    if (this.previousArea === 0) {
-      this.initArea = this.area;
-    }
-    this.previousArea = this.area;
-    this.area = this.calculateArea();
-    this.mid = midTriangle(
-      this.top.position,
-      this.left.position,
-      this.right.position
-    );
-    if (this.initMid === null) {
-      this.initMid = this.mid;
-    }
-  }
-
-  calculateArea() {
-    const topPoint = this.top.position;
-    const leftPoint = this.left.position;
-    const rightPoint = this.right.position;
-    const box = {
-      minX: Math.min(leftPoint.x, rightPoint.x, topPoint.x),
-      minY: Math.min(leftPoint.y, rightPoint.y, topPoint.y),
-      maxX: Math.max(leftPoint.x, rightPoint.x, topPoint.x),
-      maxY: Math.max(leftPoint.y, rightPoint.y, topPoint.y),
-    };
-
-    const area = (box.maxX - box.minX) * (box.maxY - box.minY);
-    return area;
-  }
-}
-
 function distance(point1, point2) {
   const dx = Math.abs(point2.x - point1.x);
   const dy = Math.abs(point2.y - point1.y);
@@ -342,120 +269,6 @@ function degreesToRadians(degrees) {
   return degrees * (Math.PI / 180);
 }
 
-function getTriangleAngles(origin2left, origin2right, left2right) {
-  const sides = [origin2left, origin2right, left2right].sort((a, b) => a - b);
-  if (sides[0] + sides[1] <= sides[2]) {
-    console.error(
-      "Invalid triangle: The given side lengths do not form a valid triangle."
-    );
-    return null;
-  }
-  const a = origin2right;
-  const b = origin2left;
-  const c = left2right;
-  const angleAtOriginRad = Math.acos((b * b + a * a - c * c) / (2 * b * a));
-  const angleAtLeftRad = Math.acos((b * b + c * c - a * a) / (2 * b * c));
-  const angleAtRightRad = Math.acos((a * a + c * c - b * b) / (2 * a * c));
-  return {
-    angleAtOrigin: angleAtOriginRad,
-    angleAtLeft: angleAtLeftRad,
-    angleAtRight: angleAtRightRad,
-    angleAtOriginDegrees: radiansToDegrees(angleAtOriginRad),
-    angleAtLeftDegrees: radiansToDegrees(angleAtLeftRad),
-    angleAtRightDegrees: radiansToDegrees(angleAtRightRad),
-  };
-}
-
-function getOriginPoint(
-  leftPoint,
-  rightPoint,
-  angleAtLeftDegrees,
-  angleAtRightDegrees
-) {
-  const angleAtLeftRad = degreesToRadians(angleAtLeftDegrees);
-  const angleAtRightRad = degreesToRadians(angleAtRightDegrees);
-
-  if (
-    angleAtLeftRad <= 0 ||
-    angleAtRightRad <= 0 ||
-    angleAtLeftRad >= Math.PI ||
-    angleAtRightRad >= Math.PI
-  ) {
-    console.error(
-      "Invalid input angles: Angles must be positive and less than 180 degrees."
-    );
-    return null;
-  }
-
-  const angleAtOriginRad = Math.PI - angleAtLeftRad - angleAtRightRad;
-
-  if (angleAtOriginRad <= 0 || angleAtOriginRad >= Math.PI) {
-    console.error(
-      "Invalid triangle: Sum of given angles is too large or too small, or results in a degenerate triangle."
-    );
-    return null;
-  }
-
-  const left2right = distance(leftPoint, rightPoint);
-
-  if (left2right === 0) {
-    console.error(
-      "Invalid triangle: Left and Right points are coincident, cannot form a triangle."
-    );
-    return null;
-  }
-
-  const origin2left =
-    (left2right * Math.sin(angleAtRightRad)) / Math.sin(angleAtOriginRad);
-
-  const origin2right =
-    (left2right * Math.sin(angleAtLeftRad)) / Math.sin(angleAtOriginRad);
-
-  if (
-    origin2left <= 0 ||
-    !Number.isFinite(origin2left) ||
-    origin2right <= 0 ||
-    !Number.isFinite(origin2right)
-  ) {
-    console.error(
-      "Invalid triangle: Calculated side lengths are non-positive or infinite (likely due to angleAtOriginRad being close to 0 or PI)."
-    );
-    return null;
-  }
-
-  const dxLR = rightPoint.x - leftPoint.x;
-  const dyLR = rightPoint.y - leftPoint.y;
-  const baseAngleLR = Math.atan2(dyLR, dxLR);
-
-  const angleLO = baseAngleLR + angleAtLeftRad;
-
-  const originX = leftPoint.x + origin2left * Math.cos(angleLO);
-  const originY = leftPoint.y + origin2left * Math.sin(angleLO);
-
-  return { x: originX, y: originY };
-}
-
-function midTriangle(a, b, c) {
-  const midX = (a.x + b.x + c.x) / 3;
-  const midY = (a.y + b.y + c.y) / 3;
-  return { x: midX, y: midY };
-}
-
-function rotateAroundCenter(v, center, angle) {
-  // Translate point to 0,0
-  let translatedX = v.x - center.x;
-  let translatedY = v.y - center.y;
-
-  let rotatedX = translatedX * Math.cos(angle) - translatedY * Math.sin(angle);
-  let rotatedY = translatedX * Math.sin(angle) + translatedY * Math.cos(angle);
-
-  // Translate back to center.x, center.y
-  return {
-    x: rotatedX + center.x,
-    y: rotatedY + center.y,
-  };
-}
-
 function square(n) {
   return Math.pow(n, 2);
 }
@@ -464,13 +277,25 @@ function sqrt(n) {
   return Math.sqrt(n);
 }
 
-function centimeterToPixel(cm) {
-  // Assuming a standard DPI of 96 for web, 1 inch = 96 pixels, and 1 inch = 2.54 cm
-  const pixelsPerCm = 96 / 2.54;
-  return cm * pixelsPerCm;
+function getPixelsPerCm() {
+  if (pixelsPerCmCache) return pixelsPerCmCache;
+  const div = document.createElement("div");
+  div.style.position = "absolute";
+  div.style.top = "-9999px";
+  div.style.left = "-9999px";
+  div.style.width = "1cm";
+
+  document.body.appendChild(div);
+
+  const pixelsPerCm = div.getBoundingClientRect().width;
+
+  document.body.removeChild(div);
+
+  pixelsPerCmCache = pixelsPerCm;
+  return pixelsPerCmCache;
 }
 
-function pixelToCentimeter(pixels) {
-  const pixelsPerCm = 96 / 2.54;
-  return pixels / pixelsPerCm;
+function centimeterToPixel(cm) {
+  const pixelsPerCm = getPixelsPerCm();
+  return cm * pixelsPerCm;
 }
