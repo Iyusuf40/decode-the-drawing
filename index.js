@@ -1,5 +1,5 @@
 const canvas = document.getElementById("myCanvas");
-const ctx = canvas.getContext("2d");
+const ctx = canvas.getContext("2d", { willReadFrequently: true });
 const loadVideoButton = document.getElementById("loadVideoButton");
 const loadSerializedVideoButton = document.getElementById(
   "loadSerializedVideoButton"
@@ -28,7 +28,7 @@ let pixelsPerCmCache = 0;
 let DRAW_BALL_AREAS = true;
 let DRAW_DECODED_DRAWING_LIVE = true;
 let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
-let DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END = true;
+let DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END = false;
 
 function init() {
   const rightReferencePoint = new ReferencePoint("rightRef");
@@ -45,7 +45,9 @@ function init() {
 }
 
 function resetDrawings() {
-  const drawingCanvasCtx = drawingCanvas.getContext("2d");
+  const drawingCanvasCtx = drawingCanvas.getContext("2d", {
+    willReadFrequently: true,
+  });
   drawingCanvasCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
   canvasWriter?.reset();
   fileWriter?.reset();
@@ -239,7 +241,7 @@ function parseCoordinates(fileContent) {
 
 function drawImageFromCoordinates(coordinates) {
   const canvas = document.getElementById("drawingCanvas");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.beginPath();
   if (coordinates.length > 0) {
