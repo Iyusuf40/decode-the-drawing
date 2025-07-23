@@ -27,7 +27,7 @@ let pixelsPerCmCache = 0;
 
 let DRAW_BALL_AREAS = true;
 let DRAW_DECODED_DRAWING_LIVE = true;
-let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
+let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = true;
 let DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END = false;
 
 function init() {
@@ -66,19 +66,30 @@ function updateCanvas() {
     );
 
     const { x, y } = trilaterationHandler.getCurrentPosition();
-    if (DRAW_DECODED_DRAWING_LIVE) {
-      canvasWriter.write(x, y, drawingCanvas);
-    }
+    if (trilaterationHandler.isPenDown()) {
+      if (DRAW_DECODED_DRAWING_LIVE) {
+        canvasWriter.write(x, y, drawingCanvas);
+      }
 
-    if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
-      fileWriter.write(x, y);
+      if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
+        fileWriter.write(x, y);
+      }
+    } else {
+      if (DRAW_DECODED_DRAWING_LIVE) {
+        canvasWriter.skip();
+      }
+
+      if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
+        fileWriter.skip();
+      }
     }
 
     if (DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END) {
       videoSerializer.write(
         positionReference.leftReferencePoint,
         positionReference.rightReferencePoint,
-        positionReference.topReferencePoint
+        positionReference.topReferencePoint,
+        trilaterationHandler.isPenDown()
       );
     }
 
@@ -120,14 +131,44 @@ fileInput.addEventListener("change", (event) => {
     videoElement.src = videoURL;
     videoElement.autoplay = true;
     videoElement.loop = true;
-    videoElement.muted = true;
     videoFileName = file.name;
 
     videoElement.addEventListener("loadeddata", () => {
       canvas.width = videoElement.videoWidth;
       canvas.height = videoElement.videoHeight;
       videoElement.loop = false;
+
+      // Audio analysis setup
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaElementSource(videoElement);
+      const analyser = audioContext.createAnalyser();
+
+      source.connect(analyser);
+      analyser.connect(audioContext.destination);
+      analyser.fftSize = 2048;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      // Function to get the average volume
+      function getAverageVolume(array) {
+        let values = 0;
+        let average;
+
+        let length = array.length;
+        for (let i = 0; i < length; i++) {
+          values += array[i];
+        }
+
+        average = values / length;
+        return average;
+      }
       resetDrawings();
+      init();
+      trilaterationHandler.setAudioAnalyser(
+        analyser,
+        dataArray,
+        getAverageVolume
+      );
       videoElement.play();
       updateCanvas();
     });

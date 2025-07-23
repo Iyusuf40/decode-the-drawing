@@ -18,6 +18,11 @@ class CanvasWriter {
     }
   }
 
+  skip() {
+    this.points.push({ undefined, undefined });
+    this.index++;
+  }
+
   reset() {
     this.points = [];
     this.index = -1;
@@ -31,6 +36,10 @@ class FileWriter {
 
   write(x, y) {
     this.points.push({ x, y });
+  }
+
+  skip() {
+    this.points.push({ undefined, undefined });
   }
 
   reset() {
@@ -54,11 +63,12 @@ class VideoSerializer {
     this.state = [];
   }
 
-  write(left, right, top) {
+  write(left, right, top, isPenDown) {
     this.state.push({
       left: JSON.parse(JSON.stringify(left.box)),
       right: JSON.parse(JSON.stringify(right.box)),
       top: JSON.parse(JSON.stringify(top.box)),
+      isPenDown,
     });
   }
 

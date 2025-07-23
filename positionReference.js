@@ -128,6 +128,9 @@ class TrilaterationHandler {
     this.Ftop = 0;
     this.Fright = 0;
     this.Fleft = 0;
+    this.audioAnalyser = null;
+    this.dataArray = null;
+    this.getAverageVolume = null;
   }
 
   update(left, right, top) {
@@ -152,6 +155,21 @@ class TrilaterationHandler {
     this.left = left;
     this.right = right;
     this.top = top;
+  }
+
+  setAudioAnalyser(analyser, dataArray, getAverageVolume) {
+    this.audioAnalyser = analyser;
+    this.dataArray = dataArray;
+    this.getAverageVolume = getAverageVolume;
+  }
+
+  isPenDown() {
+    if (!this.audioAnalyser) return false;
+
+    this.audioAnalyser.getByteFrequencyData(this.dataArray);
+    let average = this.getAverageVolume(this.dataArray);
+
+    return average > 1;
   }
 
   getBallDistance(P, side) {
@@ -186,34 +204,6 @@ class TrilaterationHandler {
   }
 
   getCurrentPosition() {
-    return this.getCurrentPositionDistorted();
-    // return this.getCurrentPositionNonDistorted();
-  }
-
-  getCurrentPositionNonDistorted() {
-    let r1 = this.getLeftBallDistance(this.left.box.maxY - this.left.box.minY);
-    let r2 = this.getRightBallDistance(
-      this.right.box.maxY - this.right.box.minY
-    );
-    let r3 = this.getTopBallDistance(this.top.box.maxY - this.top.box.minY);
-
-    const U = this.right.position.x;
-    const Vx = this.top.position.x;
-    const Vy = this.top.position.y;
-
-    const x = (square(r1) - square(r2) + square(U)) / (2 * U);
-    const y =
-      (square(r1) - square(r3) + square(Vx) + square(Vy) - 2 * Vx * x) /
-      (2 * Vy);
-
-    const opResult = square(r1) - square(x) - square(y);
-
-    const z = sqrt(Math.abs(opResult));
-
-    return this.translateToOtherPlane({ x, y: z });
-  }
-
-  getCurrentPositionDistorted() {
     let r1 = this.getLeftBallDistance(this.left.box.maxY - this.left.box.minY);
     let r2 = this.getRightBallDistance(
       this.right.box.maxY - this.right.box.minY
@@ -261,8 +251,8 @@ class TrilaterationHandler {
 
   translateToOtherPlane({ x, y }) {
     return {
-      x: x * 0.2 + this.canvas.width * 0.5,
-      y: y * 0.2 + this.canvas.height * 0.01,
+      x: x * 0.3 + this.canvas.width * 0.4,
+      y: y * 0.3 - this.canvas.height * 0.2,
     };
   }
 }
@@ -301,20 +291,6 @@ class ReferencePoint {
   getArea() {
     return this.area;
   }
-}
-
-function distance(point1, point2) {
-  const dx = Math.abs(point2.x - point1.x);
-  const dy = Math.abs(point2.y - point1.y);
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-function radiansToDegrees(radians) {
-  return radians * (180 / Math.PI);
-}
-
-function degreesToRadians(degrees) {
-  return degrees * (Math.PI / 180);
 }
 
 function square(n) {
@@ -366,154 +342,4 @@ function rotatePoint(point, center, angle) {
     x: x_new + center.x,
     y: y_new + center.y,
   };
-}
-
-function vecSub(v1, v2) {
-  return {
-    x: v1.x - v2.x,
-    y: v1.y - v2.y,
-  };
-}
-
-function vecAdd(v1, v2) {
-  return {
-    x: v1.x + v2.x,
-    y: v1.y + v2.y,
-  };
-}
-
-/**
- * A collection of helper functions for 3D vector mathematics,
- * replicating the functionality needed from Python's numpy library.
- */
-const VectorMath = {
-  /**
-   * Subtracts vector v2 from vector v1.
-   * @param {{x: number, y: number, z: number}} v1
-   * @param {{x: number, y: number, z: number}} v2
-   * @returns {{x: number, y: number, z: number}} The resulting vector.
-   */
-  subtract: (v1, v2) => ({ x: v1.x - v2.x, y: v1.y - v2.y, z: v1.z - v2.z }),
-
-  /**
-   * Adds two vectors.
-   * @param {{x: number, y: number, z: number}} v1
-   * @param {{x: number, y: number, z: number}} v2
-   * @returns {{x: number, y: number, z: number}} The resulting vector.
-   */
-  add: (v1, v2) => ({ x: v1.x + v2.x, y: v1.y + v2.y, z: v1.z + v2.z }),
-
-  /**
-   * Calculates the dot product of two vectors.
-   * @param {{x: number, y: number, z: number}} v1
-   * @param {{x: number, y: number, z: number}} v2
-   * @returns {number} The dot product.
-   */
-  dot: (v1, v2) => v1.x * v2.x + v1.y * v2.y + v1.z * v2.z,
-
-  /**
-   * Calculates the cross product of two vectors.
-   * @param {{x: number, y: number, z: number}} v1
-   * @param {{x: number, y: number, z: number}} v2
-   * @returns {{x: number, y: number, z: number}} The resulting vector.
-   */
-  cross: (v1, v2) => ({
-    x: v1.y * v2.z - v1.z * v2.y,
-    y: v1.z * v2.x - v1.x * v2.z,
-    z: v1.x * v2.y - v1.y * v2.x,
-  }),
-
-  /**
-   * Multiplies a vector by a scalar value.
-   * @param {{x: number, y: number, z: number}} v
-   * @param {number} s The scalar.
-   * @returns {{x: number, y: number, z: number}} The resulting vector.
-   */
-  multiplyScalar: (v, s) => ({ x: v.x * s, y: v.y * s, z: v.z * s }),
-
-  /**
-   * Calculates the magnitude (or norm) of a vector.
-   * @param {{x: number, y: number, z: number}} v
-   * @returns {number} The magnitude of the vector.
-   */
-  norm: (v) => Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z),
-};
-
-/**
- * Solves for the intersection point of three spheres using trilateration.
- * This is a direct JavaScript translation of the provided Python script's logic.
- *
- * @param {{x: number, y: number, z: number}} p1 Center of the first sphere.
- * @param {{x: number, y: number, z: number}} p2 Center of the second sphere.
- * @param {{x: number, y: number, z: number}} p3 Center of the third sphere.
- * @param {number} distA Distance from the intersection point to p1.
- * @param {number} distB Distance from the intersection point to p2.
- * @param {number} distC Distance from the intersection point to p3.
- * @returns {{x: number, y: number, z: number} | null} The coordinates of the intersection point, or null if no solution exists.
- */
-function solveTrilateration(p1, p2, p3, distA, distB, distC) {
-  // Create a new coordinate system based on the positions of the three reference points.
-  // ex is the unit vector in the direction from p1 to p2.
-  let ex_unnormalized = VectorMath.subtract(p2, p1);
-  const d = VectorMath.norm(ex_unnormalized);
-  if (d === 0) {
-    console.error("Points p1 and p2 cannot be the same.");
-    return null;
-  }
-  const ex = VectorMath.multiplyScalar(ex_unnormalized, 1 / d);
-
-  // i is the x-component of the vector from p1 to p3 in the new coordinate system.
-  const i = VectorMath.dot(ex, VectorMath.subtract(p3, p1));
-
-  // ey is the unit vector in the y-direction of the new coordinate system.
-  let ey_unnormalized = VectorMath.subtract(
-    VectorMath.subtract(p3, p1),
-    VectorMath.multiplyScalar(ex, i)
-  );
-  const ey_norm = VectorMath.norm(ey_unnormalized);
-  if (ey_norm === 0) {
-    console.error("Points p1, p2, and p3 cannot be collinear.");
-    return null;
-  }
-  const ey = VectorMath.multiplyScalar(ey_unnormalized, 1 / ey_norm);
-
-  // ez is the unit vector in the z-direction, found by the cross product of ex and ey.
-  const ez = VectorMath.cross(ex, ey);
-
-  // j is the y-component of the vector from p1 to p3 in the new coordinate system.
-  const j = VectorMath.dot(ey, VectorMath.subtract(p3, p1));
-
-  // --- Plug and chug using the formulas from Wikipedia ---
-  // Calculate the coordinates (x, y, z) in the transformed coordinate system.
-  const x =
-    (Math.pow(distA, 2) - Math.pow(distB, 2) + Math.pow(d, 2)) / (2 * d);
-  const y =
-    (Math.pow(distA, 2) -
-      Math.pow(distC, 2) +
-      Math.pow(i, 2) +
-      Math.pow(j, 2)) /
-      (2 * j) -
-    (i / j) * x;
-
-  const z_squared = Math.pow(distA, 2) - Math.pow(x, 2) - Math.pow(y, 2);
-  if (z_squared < 0) {
-    console.error(
-      "No real solution for z exists. The spheres do not intersect at a single point."
-    );
-    return null;
-  }
-  const z = Math.sqrt(z_squared);
-
-  // --- Convert the point back to the original coordinate system ---
-  // triPt = P1 + x*ex + y*ey + z*ez
-  const triPt_x = VectorMath.multiplyScalar(ex, x);
-  const triPt_y = VectorMath.multiplyScalar(ey, y);
-  const triPt_z = VectorMath.multiplyScalar(ez, z);
-
-  const finalPoint = VectorMath.add(
-    p1,
-    VectorMath.add(triPt_x, VectorMath.add(triPt_y, triPt_z))
-  );
-
-  return finalPoint;
 }
