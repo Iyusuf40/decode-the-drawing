@@ -145,10 +145,9 @@ class TrilaterationHandler {
       const W = 6;
       const D = 18;
 
-      const scale = 2;
-      this.Ftop = (scale * (Ptop * D)) / W;
-      this.Fright = (scale * (Pright * D)) / W;
-      this.Fleft = (scale * (Pleft * D)) / W;
+      this.Ftop = (Ptop * D) / W;
+      this.Fright = (Pright * D) / W;
+      this.Fleft = (Pleft * D) / W;
 
       this.W = W;
     }
@@ -164,12 +163,13 @@ class TrilaterationHandler {
   }
 
   isPenDown() {
-    if (!this.audioAnalyser) return false;
+    return true;
+    // if (!this.audioAnalyser) return false;
 
-    this.audioAnalyser.getByteFrequencyData(this.dataArray);
-    let average = this.getAverageVolume(this.dataArray);
+    // this.audioAnalyser.getByteFrequencyData(this.dataArray);
+    // let average = this.getAverageVolume(this.dataArray);
 
-    return average > 1;
+    // return average > 1;
   }
 
   getBallDistance(P, side) {
@@ -250,9 +250,10 @@ class TrilaterationHandler {
   }
 
   translateToOtherPlane({ x, y }) {
+    const scale = 0.6;
     return {
-      x: x * 0.3 + this.canvas.width * 0.4,
-      y: y * 0.3 - this.canvas.height * 0.2,
+      x: x * scale + this.canvas.width * 0.3,
+      y: y * scale - this.canvas.height * 0.1,
     };
   }
 }
@@ -286,10 +287,9 @@ class TriangulationHandler {
       const W = 6;
       const D = 18;
 
-      const scale = 2;
-      this.Ftop = (scale * (Ptop * D)) / W;
-      this.Fright = (scale * (Pright * D)) / W;
-      this.Fleft = (scale * (Pleft * D)) / W;
+      this.Ftop = (Ptop * D) / W;
+      this.Fright = (Pright * D) / W;
+      this.Fleft = (Pleft * D) / W;
 
       this.W = W;
     }
@@ -364,8 +364,8 @@ class TriangulationHandler {
       angles.angleA,
       angles.angleB
     );
-    newPos = { x: newPos.x + 3000, y: newPos.y + 200 };
-    const scale = 0.2;
+    newPos = { x: newPos.x + 500, y: newPos.y - 200 };
+    const scale = 0.5;
     newPos.x *= scale;
     newPos.y *= scale;
     return newPos;
@@ -440,7 +440,7 @@ function centimeterToPixel(cm) {
 }
 
 function getLineAngle(p1, p2) {
-  return Math.atan2(p2.y - p1.y, p2.x - p1.x) * 4;
+  return Math.atan2(p2.y - p1.y, p2.x - p1.x);
 }
 
 function rotatePoint(point, center, angle) {
@@ -519,7 +519,6 @@ function findThirdVertex(p1, p2, angleAtP1, angleAtP2) {
 
   // Use Law of Sines to find the other side lengths
   // a/sin(A) = b/sin(B) = c/sin(C)
-  const sideA = (sideC * Math.sin(angleAtP1)) / Math.sin(angleAtP3); // Side opposite to p1 (from p2 to p3)
   const sideB = (sideC * Math.sin(angleAtP2)) / Math.sin(angleAtP3); // Side opposite to p2 (from p1 to p3)
 
   // Calculate the angle of the line from p1 to p2
@@ -530,45 +529,12 @@ function findThirdVertex(p1, p2, angleAtP1, angleAtP2) {
 
   // Solution 1: p3 above the line p1-p2
   const angle1FromP1 = baseAngle + angleAtP1;
-  const p3_solution1 = {
+  const p3 = {
     x: p1.x + sideB * Math.cos(angle1FromP1),
     y: p1.y + sideB * Math.sin(angle1FromP1),
   };
 
-  // Solution 2: p3 below the line p1-p2
-  const angle2FromP1 = baseAngle - angleAtP1;
-  const p3_solution2 = {
-    x: p1.x + sideB * Math.cos(angle2FromP1),
-    y: p1.y + sideB * Math.sin(angle2FromP1),
-  };
-
-  // Verify solutions by checking if they form the correct angles at p2
-  const verifyAngleAtP2_1 = getAngleBetweenVectors(
-    { x: p1.x - p2.x, y: p1.y - p2.y },
-    { x: p3_solution1.x - p2.x, y: p3_solution1.y - p2.y }
-  );
-
-  const verifyAngleAtP2_2 = getAngleBetweenVectors(
-    { x: p1.x - p2.x, y: p1.y - p2.y },
-    { x: p3_solution2.x - p2.x, y: p3_solution2.y - p2.y }
-  );
-  return p3_solution1;
-
-  return {
-    solution1: p3_solution1,
-    solution2: p3_solution2,
-    triangleInfo: {
-      angleAtP3: angleAtP3,
-      sideA: sideA, // Distance from p2 to p3
-      sideB: sideB, // Distance from p1 to p3
-      sideC: sideC, // Distance from p1 to p2
-    },
-    verification: {
-      angleAtP2_solution1: verifyAngleAtP2_1,
-      angleAtP2_solution2: verifyAngleAtP2_2,
-      expectedAngleAtP2: angleAtP2,
-    },
-  };
+  return p3;
 }
 
 // Helper function to calculate angle between two vectors
@@ -583,4 +549,15 @@ function getAngleBetweenVectors(v1, v2) {
   // Clamp to prevent floating point errors
   const clampedCos = Math.max(-1, Math.min(1, cosAngle));
   return Math.acos(clampedCos);
+}
+
+function radiansToDegrees(radians) {
+  return radians * (180 / Math.PI);
+}
+
+function convertAngleToDeg(angle) {
+  return {
+    left: radiansToDegrees(angle.angleA),
+    right: radiansToDegrees(angle.angleB),
+  };
 }
