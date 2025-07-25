@@ -257,6 +257,121 @@ class TrilaterationHandler {
   }
 }
 
+class TriangulationHandler {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.left = null;
+    this.right = null;
+    this.top = null;
+    this.initLeft = null;
+    this.initRight = null;
+    this.initTop = null;
+    this.Ftop = 0;
+    this.Fright = 0;
+    this.Fleft = 0;
+    this.audioAnalyser = null;
+    this.dataArray = null;
+    this.getAverageVolume = null;
+  }
+
+  update(left, right, top) {
+    if (this.initLeft === null) {
+      this.initLeft = JSON.parse(JSON.stringify(left));
+      this.initRight = JSON.parse(JSON.stringify(right));
+      this.initTop = JSON.parse(JSON.stringify(top));
+      const Ptop = top.box.maxY - top.box.minY;
+      const Pright = right.box.maxY - right.box.minY;
+      const Pleft = left.box.maxY - left.box.minY;
+
+      const W = 6;
+      const D = 18;
+
+      const scale = 2;
+      this.Ftop = (scale * (Ptop * D)) / W;
+      this.Fright = (scale * (Pright * D)) / W;
+      this.Fleft = (scale * (Pleft * D)) / W;
+
+      this.W = W;
+    }
+    this.left = left;
+    this.right = right;
+    this.top = top;
+  }
+
+  setAudioAnalyser(analyser, dataArray, getAverageVolume) {
+    this.audioAnalyser = analyser;
+    this.dataArray = dataArray;
+    this.getAverageVolume = getAverageVolume;
+  }
+
+  isPenDown() {
+    return true;
+    // if (!this.audioAnalyser) return false;
+
+    // this.audioAnalyser.getByteFrequencyData(this.dataArray);
+    // let average = this.getAverageVolume(this.dataArray);
+
+    // return average > 1;
+  }
+
+  getBallDistance(P, side) {
+    let val = 0,
+      f = 0;
+    switch (side) {
+      case "left":
+        f = this.Fleft;
+        break;
+      case "right":
+        f = this.Fright;
+        break;
+      case "top":
+        f = this.Ftop;
+        break;
+    }
+    if (!f) throw new Error("Unknown side");
+    val = (this.W * f) / P;
+    return centimeterToPixel(val);
+  }
+
+  getTopBallDistance(P) {
+    return this.getBallDistance(P, "top");
+  }
+
+  getRightBallDistance(P) {
+    return this.getBallDistance(P, "right");
+  }
+
+  getLeftBallDistance(P) {
+    return this.getBallDistance(P, "left");
+  }
+
+  getCurrentPosition() {
+    let r1 = this.getLeftBallDistance(this.left.box.maxY - this.left.box.minY);
+    let r2 = this.getRightBallDistance(
+      this.right.box.maxY - this.right.box.minY
+    );
+    let base = centimeterToPixel(9);
+
+    const angles = anglesOfTriangleFromCosineRule(r2, r1, base);
+    const baseLeft = { x: this.canvas.width / 2 - base / 2, y: 0 };
+    const baseRight = {
+      x: this.canvas.width / 2 + base / 2,
+      y: 0,
+    };
+    let newPos = findThirdVertex(
+      baseLeft,
+      baseRight,
+      angles.angleA,
+      angles.angleB
+    );
+    newPos = { x: newPos.x + 3000, y: newPos.y + 200 };
+    const scale = 0.2;
+    newPos.x *= scale;
+    newPos.y *= scale;
+    return newPos;
+  }
+}
+
 class ReferencePoint {
   constructor(type = "") {
     this.type = type;
@@ -342,4 +457,130 @@ function rotatePoint(point, center, angle) {
     x: x_new + center.x,
     y: y_new + center.y,
   };
+}
+
+function anglesOfTriangleFromCosineRule(a, b, c) {
+  // Validate triangle inequality
+  if (a + b <= c || a + c <= b || b + c <= a) {
+    throw new Error(
+      "Invalid triangle: sides do not satisfy triangle inequality"
+    );
+  }
+
+  if (a <= 0 || b <= 0 || c <= 0) {
+    throw new Error("Invalid triangle: all sides must be positive");
+  }
+
+  // Calculate angle A (opposite to side a) using cosine rule: cos(A) = (b² + c² - a²) / (2bc)
+  const cosA = (b * b + c * c - a * a) / (2 * b * c);
+  const angleA = Math.acos(cosA);
+
+  // Calculate angle B (opposite to side b) using cosine rule: cos(B) = (a² + c² - b²) / (2ac)
+  const cosB = (a * a + c * c - b * b) / (2 * a * c);
+  const angleB = Math.acos(cosB);
+
+  // Calculate angle C (opposite to side c) using cosine rule: cos(C) = (a² + b² - c²) / (2ab)
+  const cosC = (a * a + b * b - c * c) / (2 * a * b);
+  const angleC = Math.acos(cosC);
+
+  return {
+    angleA,
+    angleB,
+    angleC,
+  };
+}
+
+function findThirdVertex(p1, p2, angleAtP1, angleAtP2) {
+  // Validate input angles
+  if (
+    angleAtP1 <= 0 ||
+    angleAtP2 <= 0 ||
+    angleAtP1 >= Math.PI ||
+    angleAtP2 >= Math.PI
+  ) {
+    throw new Error("Angles must be between 0 and π (exclusive)");
+  }
+
+  if (angleAtP1 + angleAtP2 >= Math.PI) {
+    throw new Error(
+      "Sum of given angles must be less than π for a valid triangle"
+    );
+  }
+
+  // Calculate the third angle
+  const angleAtP3 = Math.PI - angleAtP1 - angleAtP2;
+
+  // Calculate the distance between p1 and p2
+  const sideC = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+
+  if (sideC === 0) {
+    throw new Error("Points p1 and p2 cannot be the same");
+  }
+
+  // Use Law of Sines to find the other side lengths
+  // a/sin(A) = b/sin(B) = c/sin(C)
+  const sideA = (sideC * Math.sin(angleAtP1)) / Math.sin(angleAtP3); // Side opposite to p1 (from p2 to p3)
+  const sideB = (sideC * Math.sin(angleAtP2)) / Math.sin(angleAtP3); // Side opposite to p2 (from p1 to p3)
+
+  // Calculate the angle of the line from p1 to p2
+  const baseAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+
+  // There are two possible positions for p3 (above and below the line p1-p2)
+  // Calculate both solutions
+
+  // Solution 1: p3 above the line p1-p2
+  const angle1FromP1 = baseAngle + angleAtP1;
+  const p3_solution1 = {
+    x: p1.x + sideB * Math.cos(angle1FromP1),
+    y: p1.y + sideB * Math.sin(angle1FromP1),
+  };
+
+  // Solution 2: p3 below the line p1-p2
+  const angle2FromP1 = baseAngle - angleAtP1;
+  const p3_solution2 = {
+    x: p1.x + sideB * Math.cos(angle2FromP1),
+    y: p1.y + sideB * Math.sin(angle2FromP1),
+  };
+
+  // Verify solutions by checking if they form the correct angles at p2
+  const verifyAngleAtP2_1 = getAngleBetweenVectors(
+    { x: p1.x - p2.x, y: p1.y - p2.y },
+    { x: p3_solution1.x - p2.x, y: p3_solution1.y - p2.y }
+  );
+
+  const verifyAngleAtP2_2 = getAngleBetweenVectors(
+    { x: p1.x - p2.x, y: p1.y - p2.y },
+    { x: p3_solution2.x - p2.x, y: p3_solution2.y - p2.y }
+  );
+  return p3_solution1;
+
+  return {
+    solution1: p3_solution1,
+    solution2: p3_solution2,
+    triangleInfo: {
+      angleAtP3: angleAtP3,
+      sideA: sideA, // Distance from p2 to p3
+      sideB: sideB, // Distance from p1 to p3
+      sideC: sideC, // Distance from p1 to p2
+    },
+    verification: {
+      angleAtP2_solution1: verifyAngleAtP2_1,
+      angleAtP2_solution2: verifyAngleAtP2_2,
+      expectedAngleAtP2: angleAtP2,
+    },
+  };
+}
+
+// Helper function to calculate angle between two vectors
+function getAngleBetweenVectors(v1, v2) {
+  const dot = v1.x * v2.x + v1.y * v2.y;
+  const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+  const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+
+  if (mag1 === 0 || mag2 === 0) return 0;
+
+  const cosAngle = dot / (mag1 * mag2);
+  // Clamp to prevent floating point errors
+  const clampedCos = Math.max(-1, Math.min(1, cosAngle));
+  return Math.acos(clampedCos);
 }

@@ -15,7 +15,7 @@ const drawingCanvas = document.getElementById("drawingCanvas");
 
 let videoElement = null;
 let positionReference = null;
-let trilaterationHandler = null;
+let positionDecoder = null;
 let animationFramHandle = null;
 let videoFileName = "";
 const canvasWriter = new CanvasWriter();
@@ -27,7 +27,7 @@ let pixelsPerCmCache = 0;
 
 let DRAW_BALL_AREAS = true;
 let DRAW_DECODED_DRAWING_LIVE = true;
-let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = true;
+let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
 let DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END = false;
 
 function init() {
@@ -41,7 +41,8 @@ function init() {
     rightReferencePoint,
     topReferencePoint
   );
-  trilaterationHandler = new TrilaterationHandler(canvas);
+  // positionDecoder = new TrilaterationHandler(canvas);
+  positionDecoder = new TriangulationHandler(canvas);
 }
 
 function resetDrawings() {
@@ -59,14 +60,14 @@ function updateCanvas() {
     ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
     const debugCanvas = DRAW_BALL_AREAS ? canvas : null;
     positionReference.updatePosition(ctx, debugCanvas);
-    trilaterationHandler.update(
+    positionDecoder.update(
       positionReference.leftReferencePoint,
       positionReference.rightReferencePoint,
       positionReference.topReferencePoint
     );
 
-    const { x, y } = trilaterationHandler.getCurrentPosition();
-    if (trilaterationHandler.isPenDown()) {
+    const { x, y } = positionDecoder.getCurrentPosition();
+    if (positionDecoder.isPenDown()) {
       if (DRAW_DECODED_DRAWING_LIVE) {
         canvasWriter.write(x, y, drawingCanvas);
       }
@@ -89,7 +90,7 @@ function updateCanvas() {
         positionReference.leftReferencePoint,
         positionReference.rightReferencePoint,
         positionReference.topReferencePoint,
-        trilaterationHandler.isPenDown()
+        positionDecoder.isPenDown()
       );
     }
 
@@ -99,8 +100,8 @@ function updateCanvas() {
 
 function playSerializedVideo(serializedVideo) {
   for (const state of serializedVideo) {
-    trilaterationHandler.update(state.left, state.right, state.top);
-    const { x, y } = trilaterationHandler.getCurrentPosition();
+    positionDecoder.update(state.left, state.right, state.top);
+    const { x, y } = positionDecoder.getCurrentPosition();
     canvasWriter.write(x, y, drawingCanvas);
   }
 }
@@ -164,11 +165,7 @@ fileInput.addEventListener("change", (event) => {
       }
       resetDrawings();
       init();
-      trilaterationHandler.setAudioAnalyser(
-        analyser,
-        dataArray,
-        getAverageVolume
-      );
+      positionDecoder.setAudioAnalyser(analyser, dataArray, getAverageVolume);
       videoElement.play();
       updateCanvas();
     });
