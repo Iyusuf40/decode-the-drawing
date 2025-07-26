@@ -232,9 +232,7 @@ class BallDistanceDecoder {
     this.left = null;
     this.right = null;
     this.top = null;
-    this.initLeft = null;
-    this.initRight = null;
-    this.initTop = null;
+    this.initSetupRan = false;
     this.Ftop = 0;
     this.Fright = 0;
     this.Fleft = 0;
@@ -244,16 +242,14 @@ class BallDistanceDecoder {
   }
 
   update(left, right, top) {
-    if (this.initLeft === null) {
-      this.initLeft = JSON.parse(JSON.stringify(left));
-      this.initRight = JSON.parse(JSON.stringify(right));
-      this.initTop = JSON.parse(JSON.stringify(top));
+    if (this.initSetupRan === false) {
+      this.initSetupRan = true;
       const Ptop = top.box.maxY - top.box.minY;
       const Pright = right.box.maxY - right.box.minY;
       const Pleft = left.box.maxY - left.box.minY;
 
-      const W = 6;
-      const D = 18;
+      const W = 6; // Balls real width
+      const D = 18; // init camera distance
 
       this.Ftop = (Ptop * D) / W;
       this.Fright = (Pright * D) / W;
@@ -319,6 +315,10 @@ class BallDistanceDecoder {
 }
 
 class TriangulationHandler extends BallDistanceDecoder {
+  constructor(canvas) {
+    super(canvas);
+    this.previousPosition = null;
+  }
   getCurrentPosition() {
     const distortionCorrectionLeft =
       (this.left.box.maxX - this.left.box.minX) /
@@ -333,7 +333,8 @@ class TriangulationHandler extends BallDistanceDecoder {
     let r2 = this.getRightBallDistance(
       (this.right.box.maxY - this.right.box.minY) / distortionCorrectionRight
     );
-    let base = centimeterToPixel(9);
+    const realDistanceBetweenBalls = 9;
+    let base = centimeterToPixel(realDistanceBetweenBalls);
 
     const angles = anglesOfTriangleFromCosineRule(r2, r1, base);
     const baseLeft = { x: this.canvas.width / 2 - base / 2, y: 0 };
@@ -351,7 +352,17 @@ class TriangulationHandler extends BallDistanceDecoder {
     const scale = 0.5;
     newPos.x *= scale;
     newPos.y *= scale;
-    return { x: Math.floor(newPos.x), y: Math.floor(newPos.y) };
+    newPos = { x: Math.floor(newPos.x), y: Math.floor(newPos.y) };
+    if (this.previousPosition) {
+      if (distance(this.previousPosition, newPos) > 8) {
+        const t = 0.1;
+        const correctedX = lerp(this.previousPosition.x, newPos.x, t);
+        const correctedY = lerp(this.previousPosition.y, newPos.y, t);
+        newPos = { x: correctedX, y: correctedY };
+      }
+    }
+    this.previousPosition = newPos;
+    return newPos;
   }
 }
 
@@ -563,10 +574,6 @@ function findThirdVertex(p1, p2, angleAtP1, angleAtP2) {
   // Calculate the angle of the line from p1 to p2
   const baseAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
 
-  // There are two possible positions for p3 (above and below the line p1-p2)
-  // Calculate both solutions
-
-  // Solution 1: p3 above the line p1-p2
   const angle1FromP1 = baseAngle + angleAtP1;
   const p3 = {
     x: p1.x + sideB * Math.cos(angle1FromP1),
@@ -599,4 +606,12 @@ function convertAngleToDeg(angle) {
     left: radiansToDegrees(angle.angleA),
     right: radiansToDegrees(angle.angleB),
   };
+}
+
+function distance(start, end) {
+  return Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
+}
+
+function lerp(start, end, t) {
+  return start * (1 - t) + end * t;
 }

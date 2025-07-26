@@ -28,7 +28,7 @@ let audioAnalyser = null;
 
 let DRAW_BALL_AREAS = true;
 let DRAW_DECODED_DRAWING_LIVE = true;
-let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
+let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = true;
 let DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END = false;
 
 function init() {
