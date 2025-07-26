@@ -11,73 +11,10 @@ class PositionReference {
     this.rightReferencePoint = rightReferencePoint;
     this.leftReferencePoint = leftReferencePoint;
     this.topReferencePoint = topReferencePoint;
-    this.origin = {
-      x: videoWidth / 2,
-      y: videoHeight,
-    };
   }
 
   updatePosition(ctx, drawingCanvas = null) {
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    const threshod = 25;
-    const redBox = {
-      minX: Infinity,
-      minY: Infinity,
-      maxX: 0,
-      maxY: 0,
-    };
-    const blueBox = {
-      minX: Infinity,
-      minY: Infinity,
-      maxX: 0,
-      maxY: 0,
-    };
-    const greenBox = {
-      minX: Infinity,
-      minY: Infinity,
-      maxX: 0,
-      maxY: 0,
-    };
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      const point = {
-        x: (i / 4) % imageData.width,
-        y: Math.floor(i / 4 / imageData.width),
-      };
-
-      if (r > g + threshod && r > b + threshod) {
-        redBox.minX = Math.min(redBox.minX, point.x);
-        redBox.minY = Math.min(redBox.minY, point.y);
-        redBox.maxX = Math.max(redBox.maxX, point.x);
-        redBox.maxY = Math.max(redBox.maxY, point.y);
-      }
-      if (b > r + threshod && b > g + threshod) {
-        blueBox.minX = Math.min(blueBox.minX, point.x);
-        blueBox.minY = Math.min(blueBox.minY, point.y);
-        blueBox.maxX = Math.max(blueBox.maxX, point.x);
-        blueBox.maxY = Math.max(blueBox.maxY, point.y);
-      }
-      if (g > r + threshod && g > b + threshod) {
-        greenBox.minX = Math.min(greenBox.minX, point.x);
-        greenBox.minY = Math.min(greenBox.minY, point.y);
-        greenBox.maxX = Math.max(greenBox.maxX, point.x);
-        greenBox.maxY = Math.max(greenBox.maxY, point.y);
-      }
-    }
-    const containerBox = {
-      minX: Infinity,
-      minY: Infinity,
-      maxX: 0,
-      maxY: 0,
-    };
-    containerBox.minX = Math.min(redBox.minX, blueBox.minX, greenBox.minX);
-    containerBox.minY = Math.min(redBox.minY, blueBox.minY, greenBox.minY);
-    containerBox.maxX = Math.max(redBox.maxX, blueBox.maxX, greenBox.maxX);
-    containerBox.maxY = Math.max(redBox.maxY, blueBox.maxY, greenBox.maxY);
+    const { redBox, blueBox, greenBox } = this.searchBalls(ctx);
     if (drawingCanvas && DRAW_BALL_AREAS) {
       const drawingCanvasCtx = drawingCanvas.getContext("2d", {
         willReadFrequently: true,
@@ -101,22 +38,310 @@ class PositionReference {
         drawingCanvasCtx.strokeStyle = "red";
         drawingCanvasCtx.stroke();
       });
-
-      drawingCanvasCtx.beginPath();
-      drawingCanvasCtx.rect(
-        containerBox.minX,
-        containerBox.minY,
-        containerBox.maxX - containerBox.minX,
-        containerBox.maxY - containerBox.minY
-      );
     }
     this.topReferencePoint.updatePositionAndArea(redBox);
     this.leftReferencePoint.updatePositionAndArea(blueBox);
     this.rightReferencePoint.updatePositionAndArea(greenBox);
   }
+
+  searchBalls(ctx) {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    const threshold = 20;
+
+    let redBox = null;
+    let blueBox = null;
+    let greenBox = null;
+
+    const step = 4 * 200;
+
+    for (let i = 0; i < data.length; i += step) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      if (r > g + threshold && r > b + threshold && !redBox) {
+        const searcher = (i) => {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          return r > g + threshold && r > b + threshold;
+        };
+        redBox = this.searchBall(searcher, i, imageData.width);
+      }
+      if (b > r + threshold && b > g + threshold && !blueBox) {
+        const searcher = (i) => {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          return b > r + threshold && b > g + threshold;
+        };
+        blueBox = this.searchBall(searcher, i, imageData.width);
+      }
+      if (g > r + threshold && g > b + threshold && !greenBox) {
+        const searcher = (i) => {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          return g > r + threshold && g > b + threshold;
+        };
+        greenBox = this.searchBall(searcher, i, imageData.width);
+      }
+      if (redBox && blueBox && greenBox) {
+        break;
+      }
+    }
+
+    [redBox, blueBox, greenBox].forEach((box) => {
+      if (
+        !box ||
+        box.minX === Infinity ||
+        box.minY === Infinity ||
+        box.maxX === 0 ||
+        box.maxY === 0
+      ) {
+        console.log(box);
+        throw new Error("Unexpected box");
+      }
+    });
+
+    return { redBox, blueBox, greenBox };
+  }
+
+  // searchBall(searcher, startIndex, imageDataWidth) {
+  //   const box = {
+  //     minX: Infinity,
+  //     minY: Infinity,
+  //     maxX: 0,
+  //     maxY: 0,
+  //   };
+  //   let cursor = startIndex;
+
+  //   const assign = (cursor) => {
+  //     assertCursorIsAligned(cursor);
+  //     const point = {
+  //       x: (cursor / 4) % imageDataWidth,
+  //       y: Math.floor(cursor / 4 / imageDataWidth),
+  //     };
+  //     box.minX = Math.min(box.minX, point.x);
+  //     box.minY = Math.min(box.minY, point.y);
+  //     box.maxX = Math.max(box.maxX, point.x);
+  //     box.maxY = Math.max(box.maxY, point.y);
+  //   };
+
+  //   const assertCursorIsAligned = (cursor) => {
+  //     if (cursor % 4 !== 0) {
+  //       throw new Error("cursor not aligned");
+  //     }
+  //   };
+
+  //   const searchLineForward = (startOfLine, endOfLine) => {
+  //     while (startOfLine < endOfLine) {
+  //       if (searcher(startOfLine)) return startOfLine;
+  //       startOfLine += 4;
+  //     }
+  //     return null;
+  //   };
+
+  //   const searchLineBackward = (startOfLine, endOfLine) => {
+  //     while (startOfLine < endOfLine) {
+  //       if (searcher(endOfLine)) return endOfLine;
+  //       endOfLine -= 4;
+  //     }
+  //     return null;
+  //   };
+
+  //   const getStartOfLine = (index) => {
+  //     assertCursorIsAligned(index);
+  //     return Math.floor(index / 4 / imageDataWidth) * imageDataWidth * 4;
+  //   };
+
+  //   const getEndOfLine = (index) => {
+  //     assertCursorIsAligned(index);
+  //     return (
+  //       (Math.floor(index / 4 / imageDataWidth) + 1) * imageDataWidth * 4 - 4
+  //     );
+  //   };
+
+  //   const goToNextLine = (index) => {
+  //     assertCursorIsAligned(index);
+  //     return (Math.floor(index / 4 / imageDataWidth) + 1) * imageDataWidth * 4;
+  //   };
+
+  //   const goToPreviousLine = (index) => {
+  //     assertCursorIsAligned(index);
+  //     return Math.floor(index / 4 / imageDataWidth) * imageDataWidth * 4 - 4;
+  //   };
+
+  //   const searchBack = () => {
+  //     if (searcher(cursor)) {
+  //       while (searcher(cursor)) cursor -= 4;
+  //       assign(cursor);
+  //       cursor = goToPreviousLine(cursor);
+  //       cursor = getEndOfLine(cursor);
+  //       searchBack();
+  //     } else {
+  //       cursor = searchLineBackward(
+  //         getStartOfLine(cursor),
+  //         getEndOfLine(cursor)
+  //       );
+
+  //       if (!cursor) return;
+  //       while (searcher(cursor)) cursor -= 4;
+  //       assign(cursor);
+  //       cursor = goToPreviousLine(cursor);
+  //       cursor = getEndOfLine(cursor);
+  //       searchBack();
+  //     }
+  //   };
+
+  //   const searchForward = () => {
+  //     if (searcher(cursor)) {
+  //       while (searcher(cursor)) cursor += 4;
+  //       assign(cursor);
+  //       cursor = goToNextLine(cursor);
+  //       cursor = getStartOfLine(cursor);
+  //       searchForward();
+  //     } else {
+  //       cursor = searchLineForward(
+  //         getStartOfLine(cursor),
+  //         getEndOfLine(cursor)
+  //       );
+  //       if (!cursor) return;
+  //       while (searcher(cursor)) cursor += 4;
+  //       assign(cursor);
+  //       cursor = goToNextLine(cursor);
+  //       cursor = getStartOfLine(cursor);
+  //       searchForward();
+  //     }
+  //   };
+  //   cursor = startIndex;
+  //   searchBack();
+  //   cursor = startIndex;
+  //   searchForward();
+
+  //   return box;
+  // }
+
+  searchBall(searcher, startIndex, imageDataWidth) {
+    const box = {
+      minX: Infinity,
+      minY: Infinity,
+      maxX: 0,
+      maxY: 0,
+    };
+    let cursor = startIndex;
+
+    const assign = (cursor) => {
+      assertCursorIsAligned(cursor);
+      const point = {
+        x: (cursor / 4) % imageDataWidth,
+        y: Math.floor(cursor / 4 / imageDataWidth),
+      };
+      box.minX = Math.min(box.minX, point.x);
+      box.minY = Math.min(box.minY, point.y);
+      box.maxX = Math.max(box.maxX, point.x);
+      box.maxY = Math.max(box.maxY, point.y);
+    };
+
+    const assertCursorIsAligned = (cursor) => {
+      if (cursor % 4 !== 0) {
+        throw new Error("cursor not aligned");
+      }
+    };
+
+    const searchLineForward = (startOfLine, endOfLine) => {
+      let current = startOfLine;
+      while (current <= endOfLine) {
+        if (searcher(current)) return current;
+        current += 4;
+      }
+      return null;
+    };
+
+    const searchLineBackward = (startOfLine, endOfLine) => {
+      let current = endOfLine;
+      while (current >= startOfLine) {
+        if (searcher(current)) return current;
+        current -= 4;
+      }
+      return null;
+    };
+
+    const getStartOfLine = (index) => {
+      assertCursorIsAligned(index);
+      return Math.floor(index / 4 / imageDataWidth) * imageDataWidth * 4;
+    };
+
+    const getEndOfLine = (index) => {
+      assertCursorIsAligned(index);
+      return (
+        (Math.floor(index / 4 / imageDataWidth) + 1) * imageDataWidth * 4 - 4
+      );
+    };
+
+    const goToNextLine = (index) => {
+      assertCursorIsAligned(index);
+      return (Math.floor(index / 4 / imageDataWidth) + 1) * imageDataWidth * 4;
+    };
+
+    const goToPreviousLine = (index) => {
+      assertCursorIsAligned(index);
+      return (Math.floor(index / 4 / imageDataWidth) - 1) * imageDataWidth * 4;
+    };
+
+    const searchBack = () => {
+      const currentY = Math.floor(cursor / 4 / imageDataWidth);
+      if (currentY < 0) return;
+
+      const lineStart = getStartOfLine(cursor);
+      const lineEnd = getEndOfLine(cursor);
+
+      let leftMost = searchLineBackward(lineStart, lineEnd);
+      let rightMost = searchLineForward(lineStart, lineEnd);
+
+      if (leftMost !== null) assign(leftMost);
+      if (rightMost !== null) assign(rightMost);
+
+      if (leftMost !== null || rightMost !== null) {
+        cursor = goToPreviousLine(cursor);
+        searchBack();
+      }
+    };
+
+    const searchForward = () => {
+      const currentY = Math.floor(cursor / 4 / imageDataWidth);
+      const maxRows = Math.floor(
+        (imageDataWidth * imageDataWidth * 4) / (imageDataWidth * 4)
+      );
+      if (currentY >= maxRows) return;
+
+      const lineStart = getStartOfLine(cursor);
+      const lineEnd = getEndOfLine(cursor);
+
+      let leftMost = searchLineBackward(lineStart, lineEnd);
+      let rightMost = searchLineForward(lineStart, lineEnd);
+
+      if (leftMost !== null) assign(leftMost);
+      if (rightMost !== null) assign(rightMost);
+
+      if (leftMost !== null || rightMost !== null) {
+        cursor = goToNextLine(cursor);
+        searchForward();
+      }
+    };
+
+    assign(startIndex);
+    cursor = goToPreviousLine(startIndex);
+    searchBack();
+    cursor = goToNextLine(startIndex);
+    searchForward();
+
+    return box;
+  }
 }
 
-class TrilaterationHandler {
+class BallDistanceDecoder {
   constructor(canvas) {
     this.canvas = canvas;
     this.left = null;
@@ -163,13 +388,13 @@ class TrilaterationHandler {
   }
 
   isPenDown() {
-    return true;
-    // if (!this.audioAnalyser) return false;
+    // return true;
+    if (!this.audioAnalyser) return false;
 
-    // this.audioAnalyser.getByteFrequencyData(this.dataArray);
-    // let average = this.getAverageVolume(this.dataArray);
+    this.audioAnalyser.getByteFrequencyData(this.dataArray);
+    let average = this.getAverageVolume(this.dataArray);
 
-    // return average > 1;
+    return average > 1.1;
   }
 
   getBallDistance(P, side) {
@@ -203,6 +428,12 @@ class TrilaterationHandler {
     return this.getBallDistance(P, "left");
   }
 
+  getCurrentPosition() {
+    throw new Error("Must be implemented");
+  }
+}
+
+class TrilaterationHandler extends BallDistanceDecoder {
   getCurrentPosition() {
     let r1 = this.getLeftBallDistance(this.left.box.maxY - this.left.box.minY);
     let r2 = this.getRightBallDistance(
@@ -258,93 +489,7 @@ class TrilaterationHandler {
   }
 }
 
-class TriangulationHandler {
-  constructor(canvas) {
-    this.canvas = canvas;
-    this.left = null;
-    this.right = null;
-    this.top = null;
-    this.initLeft = null;
-    this.initRight = null;
-    this.initTop = null;
-    this.Ftop = 0;
-    this.Fright = 0;
-    this.Fleft = 0;
-    this.audioAnalyser = null;
-    this.dataArray = null;
-    this.getAverageVolume = null;
-  }
-
-  update(left, right, top) {
-    if (this.initLeft === null) {
-      this.initLeft = JSON.parse(JSON.stringify(left));
-      this.initRight = JSON.parse(JSON.stringify(right));
-      this.initTop = JSON.parse(JSON.stringify(top));
-      const Ptop = top.box.maxY - top.box.minY;
-      const Pright = right.box.maxY - right.box.minY;
-      const Pleft = left.box.maxY - left.box.minY;
-
-      const W = 6;
-      const D = 18;
-
-      this.Ftop = (Ptop * D) / W;
-      this.Fright = (Pright * D) / W;
-      this.Fleft = (Pleft * D) / W;
-
-      this.W = W;
-    }
-    this.left = left;
-    this.right = right;
-    this.top = top;
-  }
-
-  setAudioAnalyser(analyser, dataArray, getAverageVolume) {
-    this.audioAnalyser = analyser;
-    this.dataArray = dataArray;
-    this.getAverageVolume = getAverageVolume;
-  }
-
-  isPenDown() {
-    return true;
-    // if (!this.audioAnalyser) return false;
-
-    // this.audioAnalyser.getByteFrequencyData(this.dataArray);
-    // let average = this.getAverageVolume(this.dataArray);
-
-    // return average > 1;
-  }
-
-  getBallDistance(P, side) {
-    let val = 0,
-      f = 0;
-    switch (side) {
-      case "left":
-        f = this.Fleft;
-        break;
-      case "right":
-        f = this.Fright;
-        break;
-      case "top":
-        f = this.Ftop;
-        break;
-    }
-    if (!f) throw new Error("Unknown side");
-    val = (this.W * f) / P;
-    return centimeterToPixel(val);
-  }
-
-  getTopBallDistance(P) {
-    return this.getBallDistance(P, "top");
-  }
-
-  getRightBallDistance(P) {
-    return this.getBallDistance(P, "right");
-  }
-
-  getLeftBallDistance(P) {
-    return this.getBallDistance(P, "left");
-  }
-
+class TriangulationHandler extends BallDistanceDecoder {
   getCurrentPosition() {
     let r1 = this.getLeftBallDistance(this.left.box.maxY - this.left.box.minY);
     let r2 = this.getRightBallDistance(
@@ -368,7 +513,7 @@ class TriangulationHandler {
     const scale = 0.5;
     newPos.x *= scale;
     newPos.y *= scale;
-    return newPos;
+    return { x: Math.floor(newPos.x), y: Math.floor(newPos.y) };
   }
 }
 

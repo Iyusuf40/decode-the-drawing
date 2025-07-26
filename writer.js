@@ -9,6 +9,15 @@ class CanvasWriter {
     this.index++;
 
     if (this.index > 0) {
+      const start = this.points[this.index - 1];
+      const end = this.points[this.index];
+      const distance = Math.sqrt(
+        Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
+      );
+      if (distance > 50) {
+        return;
+      }
+
       const ctx = canvas.getContext("2d");
       ctx.beginPath();
       ctx.moveTo(this.points[this.index - 1].x, this.points[this.index - 1].y);
@@ -16,11 +25,6 @@ class CanvasWriter {
       ctx.strokeStyle = "black";
       ctx.stroke();
     }
-  }
-
-  skip() {
-    this.points.push({ undefined, undefined });
-    this.index++;
   }
 
   reset() {
@@ -36,10 +40,6 @@ class FileWriter {
 
   write(x, y) {
     this.points.push({ x, y });
-  }
-
-  skip() {
-    this.points.push({ undefined, undefined });
   }
 
   reset() {

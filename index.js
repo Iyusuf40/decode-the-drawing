@@ -75,22 +75,13 @@ function updateCanvas() {
       if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
         fileWriter.write(x, y);
       }
-    } else {
-      if (DRAW_DECODED_DRAWING_LIVE) {
-        canvasWriter.skip();
-      }
-
-      if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
-        fileWriter.skip();
-      }
     }
 
     if (DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END) {
       videoSerializer.write(
         positionReference.leftReferencePoint,
         positionReference.rightReferencePoint,
-        positionReference.topReferencePoint,
-        positionDecoder.isPenDown()
+        positionReference.topReferencePoint
       );
     }
 
@@ -281,15 +272,10 @@ function drawImageFromCoordinates(coordinates) {
   const canvas = document.getElementById("drawingCanvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.beginPath();
   if (coordinates.length > 0) {
-    ctx.moveTo(coordinates[0].x, coordinates[0].y);
     for (let i = 1; i < coordinates.length; i++) {
-      ctx.lineTo(coordinates[i].x, coordinates[i].y);
+      canvasWriter.write(coordinates[i].x, coordinates[i].y, canvas);
     }
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 2;
-    ctx.stroke();
   }
 }
 
