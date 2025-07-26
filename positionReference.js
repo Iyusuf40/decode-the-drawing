@@ -47,7 +47,7 @@ class PositionReference {
   searchBalls(ctx) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
-    const threshold = 20;
+    const threshold = 30;
 
     let redBox = null;
     let blueBox = null;
@@ -320,9 +320,18 @@ class BallDistanceDecoder {
 
 class TriangulationHandler extends BallDistanceDecoder {
   getCurrentPosition() {
-    let r1 = this.getLeftBallDistance(this.left.box.maxY - this.left.box.minY);
+    const distortionCorrectionLeft =
+      (this.left.box.maxX - this.left.box.minX) /
+      (this.left.box.maxY - this.left.box.minY);
+    const distortionCorrectionRight =
+      (this.right.box.maxX - this.right.box.minX) /
+      (this.right.box.maxY - this.right.box.minY);
+
+    let r1 = this.getLeftBallDistance(
+      (this.left.box.maxY - this.left.box.minY) / distortionCorrectionLeft
+    );
     let r2 = this.getRightBallDistance(
-      this.right.box.maxY - this.right.box.minY
+      (this.right.box.maxY - this.right.box.minY) / distortionCorrectionRight
     );
     let base = centimeterToPixel(9);
 
