@@ -35,7 +35,7 @@ class PositionReference {
           box.maxX - box.minX,
           box.maxY - box.minY
         );
-        drawingCanvasCtx.strokeStyle = "red";
+        drawingCanvasCtx.strokeStyle = "white";
         drawingCanvasCtx.stroke();
       });
     }
@@ -107,121 +107,6 @@ class PositionReference {
 
     return { redBox, blueBox, greenBox };
   }
-
-  // searchBall(searcher, startIndex, imageDataWidth) {
-  //   const box = {
-  //     minX: Infinity,
-  //     minY: Infinity,
-  //     maxX: 0,
-  //     maxY: 0,
-  //   };
-  //   let cursor = startIndex;
-
-  //   const assign = (cursor) => {
-  //     assertCursorIsAligned(cursor);
-  //     const point = {
-  //       x: (cursor / 4) % imageDataWidth,
-  //       y: Math.floor(cursor / 4 / imageDataWidth),
-  //     };
-  //     box.minX = Math.min(box.minX, point.x);
-  //     box.minY = Math.min(box.minY, point.y);
-  //     box.maxX = Math.max(box.maxX, point.x);
-  //     box.maxY = Math.max(box.maxY, point.y);
-  //   };
-
-  //   const assertCursorIsAligned = (cursor) => {
-  //     if (cursor % 4 !== 0) {
-  //       throw new Error("cursor not aligned");
-  //     }
-  //   };
-
-  //   const searchLineForward = (startOfLine, endOfLine) => {
-  //     while (startOfLine < endOfLine) {
-  //       if (searcher(startOfLine)) return startOfLine;
-  //       startOfLine += 4;
-  //     }
-  //     return null;
-  //   };
-
-  //   const searchLineBackward = (startOfLine, endOfLine) => {
-  //     while (startOfLine < endOfLine) {
-  //       if (searcher(endOfLine)) return endOfLine;
-  //       endOfLine -= 4;
-  //     }
-  //     return null;
-  //   };
-
-  //   const getStartOfLine = (index) => {
-  //     assertCursorIsAligned(index);
-  //     return Math.floor(index / 4 / imageDataWidth) * imageDataWidth * 4;
-  //   };
-
-  //   const getEndOfLine = (index) => {
-  //     assertCursorIsAligned(index);
-  //     return (
-  //       (Math.floor(index / 4 / imageDataWidth) + 1) * imageDataWidth * 4 - 4
-  //     );
-  //   };
-
-  //   const goToNextLine = (index) => {
-  //     assertCursorIsAligned(index);
-  //     return (Math.floor(index / 4 / imageDataWidth) + 1) * imageDataWidth * 4;
-  //   };
-
-  //   const goToPreviousLine = (index) => {
-  //     assertCursorIsAligned(index);
-  //     return Math.floor(index / 4 / imageDataWidth) * imageDataWidth * 4 - 4;
-  //   };
-
-  //   const searchBack = () => {
-  //     if (searcher(cursor)) {
-  //       while (searcher(cursor)) cursor -= 4;
-  //       assign(cursor);
-  //       cursor = goToPreviousLine(cursor);
-  //       cursor = getEndOfLine(cursor);
-  //       searchBack();
-  //     } else {
-  //       cursor = searchLineBackward(
-  //         getStartOfLine(cursor),
-  //         getEndOfLine(cursor)
-  //       );
-
-  //       if (!cursor) return;
-  //       while (searcher(cursor)) cursor -= 4;
-  //       assign(cursor);
-  //       cursor = goToPreviousLine(cursor);
-  //       cursor = getEndOfLine(cursor);
-  //       searchBack();
-  //     }
-  //   };
-
-  //   const searchForward = () => {
-  //     if (searcher(cursor)) {
-  //       while (searcher(cursor)) cursor += 4;
-  //       assign(cursor);
-  //       cursor = goToNextLine(cursor);
-  //       cursor = getStartOfLine(cursor);
-  //       searchForward();
-  //     } else {
-  //       cursor = searchLineForward(
-  //         getStartOfLine(cursor),
-  //         getEndOfLine(cursor)
-  //       );
-  //       if (!cursor) return;
-  //       while (searcher(cursor)) cursor += 4;
-  //       assign(cursor);
-  //       cursor = goToNextLine(cursor);
-  //       cursor = getStartOfLine(cursor);
-  //       searchForward();
-  //     }
-  //   };
-  //   cursor = startIndex;
-  //   searchBack();
-  //   cursor = startIndex;
-  //   searchForward();
-
-  //   return box;
-  // }
 
   searchBall(searcher, startIndex, imageDataWidth) {
     const box = {
@@ -433,6 +318,34 @@ class BallDistanceDecoder {
   }
 }
 
+class TriangulationHandler extends BallDistanceDecoder {
+  getCurrentPosition() {
+    let r1 = this.getLeftBallDistance(this.left.box.maxY - this.left.box.minY);
+    let r2 = this.getRightBallDistance(
+      this.right.box.maxY - this.right.box.minY
+    );
+    let base = centimeterToPixel(9);
+
+    const angles = anglesOfTriangleFromCosineRule(r2, r1, base);
+    const baseLeft = { x: this.canvas.width / 2 - base / 2, y: 0 };
+    const baseRight = {
+      x: this.canvas.width / 2 + base / 2,
+      y: 0,
+    };
+    let newPos = findThirdVertex(
+      baseLeft,
+      baseRight,
+      angles.angleA,
+      angles.angleB
+    );
+    newPos = { x: newPos.x + 500, y: newPos.y - 200 };
+    const scale = 0.5;
+    newPos.x *= scale;
+    newPos.y *= scale;
+    return { x: Math.floor(newPos.x), y: Math.floor(newPos.y) };
+  }
+}
+
 class TrilaterationHandler extends BallDistanceDecoder {
   getCurrentPosition() {
     let r1 = this.getLeftBallDistance(this.left.box.maxY - this.left.box.minY);
@@ -486,34 +399,6 @@ class TrilaterationHandler extends BallDistanceDecoder {
       x: x * scale + this.canvas.width * 0.3,
       y: y * scale - this.canvas.height * 0.1,
     };
-  }
-}
-
-class TriangulationHandler extends BallDistanceDecoder {
-  getCurrentPosition() {
-    let r1 = this.getLeftBallDistance(this.left.box.maxY - this.left.box.minY);
-    let r2 = this.getRightBallDistance(
-      this.right.box.maxY - this.right.box.minY
-    );
-    let base = centimeterToPixel(9);
-
-    const angles = anglesOfTriangleFromCosineRule(r2, r1, base);
-    const baseLeft = { x: this.canvas.width / 2 - base / 2, y: 0 };
-    const baseRight = {
-      x: this.canvas.width / 2 + base / 2,
-      y: 0,
-    };
-    let newPos = findThirdVertex(
-      baseLeft,
-      baseRight,
-      angles.angleA,
-      angles.angleB
-    );
-    newPos = { x: newPos.x + 500, y: newPos.y - 200 };
-    const scale = 0.5;
-    newPos.x *= scale;
-    newPos.y *= scale;
-    return { x: Math.floor(newPos.x), y: Math.floor(newPos.y) };
   }
 }
 

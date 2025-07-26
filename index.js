@@ -22,6 +22,7 @@ const canvasWriter = new CanvasWriter();
 const fileWriter = new FileWriter();
 const videoSerializer = new VideoSerializer();
 let pixelsPerCmCache = 0;
+let audioAnalyser = null;
 
 // configuration
 
@@ -84,7 +85,6 @@ function updateCanvas() {
         positionReference.topReferencePoint
       );
     }
-
     animationFramHandle = requestAnimationFrame(updateCanvas);
   }
 }
@@ -130,33 +130,7 @@ fileInput.addEventListener("change", (event) => {
       canvas.height = videoElement.videoHeight;
       videoElement.loop = false;
 
-      // Audio analysis setup
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaElementSource(videoElement);
-      const analyser = audioContext.createAnalyser();
-
-      source.connect(analyser);
-      analyser.connect(audioContext.destination);
-      analyser.fftSize = 2048;
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-
-      // Function to get the average volume
-      function getAverageVolume(array) {
-        let values = 0;
-        let average;
-
-        let length = array.length;
-        for (let i = 0; i < length; i++) {
-          values += array[i];
-        }
-
-        average = values / length;
-        return average;
-      }
-      resetDrawings();
-      init();
-      positionDecoder.setAudioAnalyser(analyser, dataArray, getAverageVolume);
+      connectAudio();
       videoElement.play();
       updateCanvas();
     });
@@ -181,6 +155,7 @@ replayVideoButton.addEventListener("click", () => {
     videoElement.play();
     resetDrawings();
     init();
+    reConnectAudio();
     updateCanvas();
   }
 });
@@ -225,6 +200,20 @@ document.addEventListener("keydown", (event) => {
       }
     }
   }
+
+  if (event.key === "p") {
+    event.preventDefault();
+    if (videoElement) {
+      if (videoElement.paused) {
+        videoElement.play();
+        updateCanvas();
+      } else {
+        videoElement.pause();
+        cancelAnimationFrame(animationFramHandle);
+      }
+    }
+    canvasWriter.peek();
+  }
   if (["1", "2", "3", "4", "5", "6"].includes(event.key)) {
     const imagesData = [
       circleVideoData,
@@ -248,6 +237,51 @@ document.addEventListener("keydown", (event) => {
 });
 
 // utilities
+
+function connectAudio() {
+  const audioContext = new AudioContext();
+  const source = audioContext.createMediaElementSource(videoElement);
+  audioAnalyser = audioContext.createAnalyser();
+
+  source.connect(audioAnalyser);
+  audioAnalyser.connect(audioContext.destination);
+  audioAnalyser.fftSize = 2048;
+  const bufferLength = audioAnalyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+
+  function getAverageVolume(array) {
+    let values = 0;
+    let average;
+
+    let length = array.length;
+    for (let i = 0; i < length; i++) {
+      values += array[i];
+    }
+
+    average = values / length;
+    return average;
+  }
+  positionDecoder.setAudioAnalyser(audioAnalyser, dataArray, getAverageVolume);
+}
+
+function reConnectAudio() {
+  const bufferLength = audioAnalyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+
+  function getAverageVolume(array) {
+    let values = 0;
+    let average;
+
+    let length = array.length;
+    for (let i = 0; i < length; i++) {
+      values += array[i];
+    }
+
+    average = values / length;
+    return average;
+  }
+  positionDecoder.setAudioAnalyser(audioAnalyser, dataArray, getAverageVolume);
+}
 
 function parseCoordinates(fileContent) {
   const coordinates = [];

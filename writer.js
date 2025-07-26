@@ -23,6 +23,7 @@ class CanvasWriter {
       ctx.moveTo(this.points[this.index - 1].x, this.points[this.index - 1].y);
       ctx.lineTo(this.points[this.index].x, this.points[this.index].y);
       ctx.strokeStyle = "black";
+      ctx.lineWidth = 2;
       ctx.stroke();
     }
   }
@@ -30,6 +31,10 @@ class CanvasWriter {
   reset() {
     this.points = [];
     this.index = -1;
+  }
+
+  peek(count = 20) {
+    console.log(this.points.slice(-count));
   }
 }
 
