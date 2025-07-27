@@ -14,7 +14,7 @@ class CanvasWriter {
       const distance = Math.sqrt(
         Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
       );
-      if (distance > 50) {
+      if (distance > SKIPPED_DISTANCE) {
         return;
       }
 

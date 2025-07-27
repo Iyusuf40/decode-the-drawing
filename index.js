@@ -23,10 +23,11 @@ const fileWriter = new FileWriter();
 const videoSerializer = new VideoSerializer();
 let pixelsPerCmCache = 0;
 let audioAnalyser = null;
+const SKIPPED_DISTANCE = 50;
 
 // configuration
 
-let DRAW_BALL_AREAS = true;
+let DRAW_BALL_AREAS = false;
 let DRAW_DECODED_DRAWING_LIVE = true;
 let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = true;
 let DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END = false;
@@ -59,16 +60,16 @@ function resetDrawings() {
 function updateCanvas() {
   if (videoElement) {
     ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-    const debugCanvas = DRAW_BALL_AREAS ? canvas : null;
-    positionReference.updatePosition(ctx, debugCanvas);
-    positionDecoder.update(
-      positionReference.leftReferencePoint,
-      positionReference.rightReferencePoint,
-      positionReference.topReferencePoint
-    );
-
-    const { x, y } = positionDecoder.getCurrentPosition();
     if (positionDecoder.isPenDown()) {
+      const debugCanvas = DRAW_BALL_AREAS ? canvas : null;
+      positionReference.updatePosition(ctx, debugCanvas);
+      positionDecoder.update(
+        positionReference.leftReferencePoint,
+        positionReference.rightReferencePoint,
+        positionReference.topReferencePoint
+      );
+
+      const { x, y } = positionDecoder.getCurrentPosition();
       if (DRAW_DECODED_DRAWING_LIVE) {
         canvasWriter.write(x, y, drawingCanvas);
       }
@@ -76,17 +77,19 @@ function updateCanvas() {
       if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
         fileWriter.write(x, y);
       }
-    }
 
-    if (DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END) {
-      videoSerializer.write(
-        positionReference.leftReferencePoint,
-        positionReference.rightReferencePoint,
-        positionReference.topReferencePoint
-      );
+      if (DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END) {
+        videoSerializer.write(
+          positionReference.leftReferencePoint,
+          positionReference.rightReferencePoint,
+          positionReference.topReferencePoint
+        );
+      }
+    } else {
+      positionDecoder.resetPreviousPosition();
     }
-    animationFramHandle = requestAnimationFrame(updateCanvas);
   }
+  animationFramHandle = requestAnimationFrame(updateCanvas);
 }
 
 function playSerializedVideo(serializedVideo) {

@@ -239,6 +239,7 @@ class BallDistanceDecoder {
     this.audioAnalyser = null;
     this.dataArray = null;
     this.getAverageVolume = null;
+    this.previousPosition = null;
   }
 
   update(left, right, top) {
@@ -308,16 +309,16 @@ class BallDistanceDecoder {
     return this.getBallDistance(P, "left");
   }
 
+  resetPreviousPosition() {
+    this.previousPosition = null;
+  }
+
   getCurrentPosition() {
     throw new Error("Must be implemented");
   }
 }
 
 class TriangulationHandler extends BallDistanceDecoder {
-  constructor(canvas) {
-    super(canvas);
-    this.previousPosition = null;
-  }
   getCurrentPosition() {
     const distortionCorrectionLeft =
       (this.left.box.maxX - this.left.box.minX) /
@@ -359,10 +360,11 @@ class TriangulationHandler extends BallDistanceDecoder {
   }
 
   correctNoise(newPos) {
-    const maxShift = 8;
     if (this.previousPosition) {
-      if (distance(this.previousPosition, newPos) > maxShift) {
-        const t = 0.1;
+      const distanceMoved = distance(this.previousPosition, newPos);
+      const maxShift = 5;
+      if (distanceMoved >= maxShift) {
+        const t = 0.08;
         const correctedX = lerp(this.previousPosition.x, newPos.x, t);
         const correctedY = lerp(this.previousPosition.y, newPos.y, t);
         newPos = { x: correctedX, y: correctedY };
