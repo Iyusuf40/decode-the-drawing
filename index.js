@@ -1,7 +1,11 @@
 const canvas = document.getElementById("myCanvas");
-const ctx = canvas.getContext("2d");
+const ctx = canvas.getContext("2d", { willReadFrequently: true });
 const loadVideoButton = document.getElementById("loadVideoButton");
+const loadSerializedVideoButton = document.getElementById(
+  "loadSerializedVideoButton"
+);
 const fileInput = document.getElementById("videoInput");
+const serializedVideoInput = document.getElementById("serializedVideoInput");
 const coordinatesInput = document.getElementById("coordinatesInput");
 const loadCoordinatesButton = document.getElementById("loadCoordinatesButton");
 const replayVideoButton = document.getElementById("replayVideoButton");
@@ -11,17 +15,21 @@ const drawingCanvas = document.getElementById("drawingCanvas");
 
 let videoElement = null;
 let positionReference = null;
-let triangle = null;
+let positionDecoder = null;
 let animationFramHandle = null;
 let videoFileName = "";
 const canvasWriter = new CanvasWriter();
 const fileWriter = new FileWriter();
+const videoSerializer = new VideoSerializer();
+let pixelsPerCmCache = 0;
+let audioAnalyser = null;
 
 // configuration
 
-const DRAW_BALL_AREAS = true;
-const DRAW_DECODED_DRAWING_LIVE = true;
-const DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = false;
+let DRAW_BALL_AREAS = true;
+let DRAW_DECODED_DRAWING_LIVE = true;
+let DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END = true;
+let DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END = false;
 
 function init() {
   const rightReferencePoint = new ReferencePoint("rightRef");
@@ -34,20 +42,18 @@ function init() {
     rightReferencePoint,
     topReferencePoint
   );
-  triangle = new Triangle(
-    topReferencePoint,
-    leftReferencePoint,
-    rightReferencePoint,
-    canvas.width / 2,
-    canvas.height / 2
-  );
+  // positionDecoder = new TrilaterationHandler(canvas);
+  positionDecoder = new TriangulationHandler(canvas);
 }
 
 function resetDrawings() {
-  const drawingCanvasCtx = drawingCanvas.getContext("2d");
+  const drawingCanvasCtx = drawingCanvas.getContext("2d", {
+    willReadFrequently: true,
+  });
   drawingCanvasCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
   canvasWriter?.reset();
   fileWriter?.reset();
+  videoSerializer?.reset();
 }
 
 function updateCanvas() {
@@ -55,22 +61,49 @@ function updateCanvas() {
     ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
     const debugCanvas = DRAW_BALL_AREAS ? canvas : null;
     positionReference.updatePosition(ctx, debugCanvas);
-    triangle.update();
+    positionDecoder.update(
+      positionReference.leftReferencePoint,
+      positionReference.rightReferencePoint,
+      positionReference.topReferencePoint
+    );
 
-    const { x, y } = triangle.getDrawingCoordinates();
-    if (DRAW_DECODED_DRAWING_LIVE) {
-      canvasWriter.write(x, y, drawingCanvas);
+    const { x, y } = positionDecoder.getCurrentPosition();
+    if (positionDecoder.isPenDown()) {
+      if (DRAW_DECODED_DRAWING_LIVE) {
+        canvasWriter.write(x, y, drawingCanvas);
+      }
+
+      if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
+        fileWriter.write(x, y);
+      }
     }
 
-    if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
-      fileWriter.write(x, y);
+    if (DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END) {
+      videoSerializer.write(
+        positionReference.leftReferencePoint,
+        positionReference.rightReferencePoint,
+        positionReference.topReferencePoint
+      );
     }
-
     animationFramHandle = requestAnimationFrame(updateCanvas);
   }
 }
 
+function playSerializedVideo(serializedVideo) {
+  for (const state of serializedVideo) {
+    positionDecoder.update(state.left, state.right, state.top);
+    const { x, y } = positionDecoder.getCurrentPosition();
+    canvasWriter.write(x, y, drawingCanvas);
+  }
+}
+
 // event handlers
+
+loadSerializedVideoButton.addEventListener("click", () => {
+  serializedVideoInput.click();
+});
+
+serializedVideoInput.addEventListener("change", handleSerializedVideoFile);
 
 loadCoordinatesButton.addEventListener("click", () => {
   coordinatesInput.click();
@@ -90,14 +123,14 @@ fileInput.addEventListener("change", (event) => {
     videoElement.src = videoURL;
     videoElement.autoplay = true;
     videoElement.loop = true;
-    videoElement.muted = true;
     videoFileName = file.name;
 
     videoElement.addEventListener("loadeddata", () => {
       canvas.width = videoElement.videoWidth;
       canvas.height = videoElement.videoHeight;
       videoElement.loop = false;
-      resetDrawings();
+
+      connectAudio();
       videoElement.play();
       updateCanvas();
     });
@@ -107,6 +140,9 @@ fileInput.addEventListener("change", (event) => {
       cancelAnimationFrame(animationFramHandle);
       if (DOWNLOAD_COORDINATES_AS_FILE_ON_VIDEO_END) {
         fileWriter.download(`${videoFileName}.txt`);
+      }
+      if (DOWNLOAD_VIDEO_AS_FILE_ON_VIDEO_END) {
+        videoSerializer.download(`${videoFileName}.json`);
       }
     });
   }
@@ -119,6 +155,7 @@ replayVideoButton.addEventListener("click", () => {
     videoElement.play();
     resetDrawings();
     init();
+    reConnectAudio();
     updateCanvas();
   }
 });
@@ -147,7 +184,104 @@ document.addEventListener("DOMContentLoaded", () => {
   init();
 });
 
+document.addEventListener("keydown", (event) => {
+  if (event.key === "d") {
+    DRAW_BALL_AREAS = !DRAW_BALL_AREAS;
+  }
+  if (event.key === " ") {
+    event.preventDefault();
+    if (videoElement) {
+      if (videoElement.paused) {
+        videoElement.play();
+        updateCanvas();
+      } else {
+        videoElement.pause();
+        cancelAnimationFrame(animationFramHandle);
+      }
+    }
+  }
+
+  if (event.key === "p") {
+    event.preventDefault();
+    if (videoElement) {
+      if (videoElement.paused) {
+        videoElement.play();
+        updateCanvas();
+      } else {
+        videoElement.pause();
+        cancelAnimationFrame(animationFramHandle);
+      }
+    }
+    canvasWriter.peek();
+  }
+  if (["1", "2", "3", "4", "5", "6"].includes(event.key)) {
+    const imagesData = [
+      circleVideoData,
+      starVideoData,
+      houseVideoData,
+      questionMarkVideoData,
+      treeVideoData,
+      animeCharacterVideoData,
+    ];
+    const imageData = imagesData[parseInt(event.key) - 1];
+    resetDrawings();
+    const serializedVideo = imageData.map((state) => {
+      return {
+        left: ReferencePoint.fromBox(state.left),
+        right: ReferencePoint.fromBox(state.right),
+        top: ReferencePoint.fromBox(state.top),
+      };
+    });
+    playSerializedVideo(serializedVideo);
+  }
+});
+
 // utilities
+
+function connectAudio() {
+  const audioContext = new AudioContext();
+  const source = audioContext.createMediaElementSource(videoElement);
+  audioAnalyser = audioContext.createAnalyser();
+
+  source.connect(audioAnalyser);
+  audioAnalyser.connect(audioContext.destination);
+  audioAnalyser.fftSize = 2048;
+  const bufferLength = audioAnalyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+
+  function getAverageVolume(array) {
+    let values = 0;
+    let average;
+
+    let length = array.length;
+    for (let i = 0; i < length; i++) {
+      values += array[i];
+    }
+
+    average = values / length;
+    return average;
+  }
+  positionDecoder.setAudioAnalyser(audioAnalyser, dataArray, getAverageVolume);
+}
+
+function reConnectAudio() {
+  const bufferLength = audioAnalyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+
+  function getAverageVolume(array) {
+    let values = 0;
+    let average;
+
+    let length = array.length;
+    for (let i = 0; i < length; i++) {
+      values += array[i];
+    }
+
+    average = values / length;
+    return average;
+  }
+  positionDecoder.setAudioAnalyser(audioAnalyser, dataArray, getAverageVolume);
+}
 
 function parseCoordinates(fileContent) {
   const coordinates = [];
@@ -170,17 +304,12 @@ function parseCoordinates(fileContent) {
 
 function drawImageFromCoordinates(coordinates) {
   const canvas = document.getElementById("drawingCanvas");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.beginPath();
   if (coordinates.length > 0) {
-    ctx.moveTo(coordinates[0].x, coordinates[0].y);
     for (let i = 1; i < coordinates.length; i++) {
-      ctx.lineTo(coordinates[i].x, coordinates[i].y);
+      canvasWriter.write(coordinates[i].x, coordinates[i].y, canvas);
     }
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 2;
-    ctx.stroke();
   }
 }
 
@@ -192,6 +321,26 @@ function handleCoordinatesFile(e) {
       const fileContent = event.target.result;
       const coordinates = parseCoordinates(fileContent);
       drawImageFromCoordinates(coordinates);
+    };
+    reader.readAsText(file);
+  }
+}
+
+function handleSerializedVideoFile(e) {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      const fileContent = event.target.result;
+      const data = JSON.parse(fileContent);
+      const serializedVideo = data.map((state) => {
+        return {
+          left: ReferencePoint.fromBox(state.left),
+          right: ReferencePoint.fromBox(state.right),
+          top: ReferencePoint.fromBox(state.top),
+        };
+      });
+      playSerializedVideo(serializedVideo);
     };
     reader.readAsText(file);
   }
