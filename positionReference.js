@@ -269,7 +269,6 @@ class BallDistanceDecoder {
   }
 
   isPenDown() {
-    // return true;
     if (!this.audioAnalyser) return false;
 
     this.audioAnalyser.getByteFrequencyData(this.dataArray);
@@ -348,20 +347,27 @@ class TriangulationHandler extends BallDistanceDecoder {
       angles.angleA,
       angles.angleB
     );
-    newPos = { x: newPos.x + 500, y: newPos.y - 200 };
+    newPos = { x: newPos.x + 500, y: newPos.y - 200 }; // try to center image on canvas
     const scale = 0.5;
     newPos.x *= scale;
     newPos.y *= scale;
     newPos = { x: Math.floor(newPos.x), y: Math.floor(newPos.y) };
+    newPos = this.correctNoise(newPos);
+
+    this.previousPosition = newPos;
+    return newPos;
+  }
+
+  correctNoise(newPos) {
+    const maxShift = 8;
     if (this.previousPosition) {
-      if (distance(this.previousPosition, newPos) > 8) {
+      if (distance(this.previousPosition, newPos) > maxShift) {
         const t = 0.1;
         const correctedX = lerp(this.previousPosition.x, newPos.x, t);
         const correctedY = lerp(this.previousPosition.y, newPos.y, t);
         newPos = { x: correctedX, y: correctedY };
       }
     }
-    this.previousPosition = newPos;
     return newPos;
   }
 }
